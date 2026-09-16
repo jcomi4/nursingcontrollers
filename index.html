@@ -3,11 +3,7 @@
   <head>
     <meta charset="utf-8">
     <title>KSU Nursing VR Orientation</title>
-    <!-- A-Frame Core -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <!-- Official Meta Teleport Controls Component -->
-    <script src="https://cdn.jsdelivr.net/npm/aframe-teleport-controls@0.4.0/dist/aframe-teleport-controls.min.js"></script>
-
     <style>
       #launch-screen {
         position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
@@ -41,13 +37,16 @@
           this.gripTimer = 0;
           this.isGripping = false;
           this.targetsRemaining = 3;
-          this.teleportState = 'away'; // 'away' -> 'home' -> next step
+          this.teleportState = 'away';
+          this.isStickActive = false;
 
           this.slideDisplay = document.querySelector('#slideDisplay');
           this.progressBar = document.querySelector('#progress-fill');
           this.progressBg = document.querySelector('#progress-bg');
           this.targetGroup = document.querySelector('#target-group');
           this.teleportZone = document.querySelector('#teleport-zone');
+          this.teleportMarker = document.querySelector('#teleport-marker');
+          this.teleportBeam = document.querySelector('#teleport-beam');
           this.cameraRig = document.querySelector('#camera-rig');
           this.leftHand = document.querySelector('#left-hand');
           this.rightHand = document.querySelector('#right-hand');
@@ -93,7 +92,6 @@
             this.progressBar.setAttribute('visible', 'false');
             this.targetGroup.setAttribute('visible', 'true');
 
-            // Lasers for target shooting
             this.leftHand.setAttribute('raycaster', 'objects: .clickable; showLine: true; far: 25');
             this.rightHand.setAttribute('raycaster', 'objects: .clickable; showLine: true; far: 25');
             this.leftHand.setAttribute('cursor', 'rayOrigin: entity');
@@ -105,26 +103,16 @@
             this.teleportZone.setAttribute('position', '2.5 0.03 -1.5');
             this.teleportState = 'away';
 
-            // Disable standard laser line so it doesn't clash with teleport arc
+            // Disable standard laser pointers
             this.leftHand.removeAttribute('cursor');
             this.rightHand.removeAttribute('cursor');
             this.leftHand.setAttribute('raycaster', 'showLine', false);
             this.rightHand.setAttribute('raycaster', 'showLine', false);
-
-            // Enable Native Hardware Teleport Component on Right Hand
-            this.rightHand.setAttribute('teleport-controls', {
-              cameraRig: '#camera-rig',
-              teleportEntity: '#camera-rig',
-              collisionEntities: '#floor',
-              curveShootingSpeed: 16,
-              hitCylinderColor: '#00FFCC',
-              curveHitColor: '#00FFCC',
-              curveMissColor: '#EEB111'
-            });
           } 
           else if (this.step === 3) {
             this.teleportZone.setAttribute('visible', 'false');
-            this.rightHand.removeAttribute('teleport-controls');
+            this.teleportMarker.setAttribute('visible', 'false');
+            this.teleportBeam.setAttribute('visible', 'false');
           } 
           else if (this.step === 4) {
             setTimeout(() => {
@@ -148,29 +136,21 @@
             hand.addEventListener('gripdown', () => checkGrip(true));
             hand.addEventListener('gripup', () => checkGrip(false));
 
-            // Backup trigger jump for Step 2.5 if user prefers pulling trigger
             hand.addEventListener('triggerdown', () => {
-              if (this.step === '2.5') {
-                this.performPadTeleport();
-              } else if (this.step === 3) {
+              if (this.step === 3) {
                 this.step = 4;
                 this.updateStep();
               }
             });
           });
-
-          // Listen for native teleport completion event
-          this.rightHand.addEventListener('teleported', () => {
-            if (this.step === '2.5') {
-              this.handleTeleportStep();
-            }
-          });
         },
 
-        handleTeleportStep: function () {
+        performTeleport: function () {
+          const padPos = this.teleportZone.getAttribute('position');
+          this.cameraRig.setAttribute('position', `${padPos.x} 0 ${padPos.z}`);
+
           if (this.teleportState === 'away') {
             this.teleportState = 'home';
-            // Move target indicator back to the blue floor pad
             this.teleportZone.setAttribute('position', '0 0.03 -0.6');
           } else if (this.teleportState === 'home') {
             this.step = 3;
@@ -178,13 +158,8 @@
           }
         },
 
-        performPadTeleport: function () {
-          const padPos = this.teleportZone.getAttribute('position');
-          this.cameraRig.setAttribute('position', `${padPos.x} 0 ${padPos.z}`);
-          this.handleTeleportStep();
-        },
-
         tick: function (time, deltaTime) {
+          // Grip hold progress (Step 1)
           if (this.step === 1 && this.isGripping) {
             this.gripTimer += deltaTime;
             const progress = Math.min(this.gripTimer / 2000, 1);
@@ -195,6 +170,73 @@
               this.isGripping = false;
               this.step = 2;
               this.updateStep();
+            }
+          }
+
+          // Direct WebXR Frame Input Source Scan (Step 2.5)
+          if (this.step === '2.5') {
+            let stickPushed = false;
+            let activeControllerEntity = this.rightHand;
+
+            const xrSession = this.el.sceneEl.xrSession;
+            if (xrSession && xrSession.inputSources) {
+              for (const source of xrSession.inputSources) {
+                if (source.gamepad && source.gamepad.axes) {
+                  // Quest controllers place primary thumbstick on axes [2] (X) and [3] (Y)
+                  // Fallback to axis [1] for older configurations
+                  const axes = source.gamepad.axes;
+                  const yAxis = axes.length >= 4 ? axes[3] : axes[1];
+
+                  if (yAxis < -0.35) {
+                    stickPushed = true;
+                    activeControllerEntity = (source.handedness === 'left') ? this.leftHand : this.rightHand;
+                    break;
+                  }
+                }
+              }
+            }
+
+            if (stickPushed) {
+              this.isStickActive = true;
+              this.teleportMarker.setAttribute('visible', 'true');
+              this.teleportBeam.setAttribute('visible', 'true');
+
+              // Raycast from hand forward down to floor
+              const handObj = activeControllerEntity.object3D;
+              const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(handObj.quaternion);
+              const handPos = new THREE.Vector3();
+              handObj.getWorldPosition(handPos);
+
+              if (forward.y < -0.05) {
+                const t = -handPos.y / forward.y;
+                const hitX = handPos.x + forward.x * t;
+                const hitZ = handPos.z + forward.z * t;
+                this.validTargetPos = { x: hitX, z: hitZ };
+
+                this.teleportMarker.setAttribute('position', `${hitX} 0.03 ${hitZ}`);
+                this.teleportBeam.setAttribute('line', {
+                  start: `${handPos.x} ${handPos.y} ${handPos.z}`,
+                  end: `${hitX} 0.03 ${hitZ}`,
+                  color: '#00FFCC'
+                });
+              }
+            } else {
+              // Stick released after forward push -> execute jump
+              if (this.isStickActive) {
+                this.isStickActive = false;
+                this.teleportMarker.setAttribute('visible', 'false');
+                this.teleportBeam.setAttribute('visible', 'false');
+
+                if (this.validTargetPos) {
+                  const padPos = this.teleportZone.getAttribute('position');
+                  const dist = Math.hypot(this.validTargetPos.x - padPos.x, this.validTargetPos.z - padPos.z);
+                  
+                  // Allow up to 1.8m landing tolerance
+                  if (dist < 1.8) {
+                    this.performTeleport();
+                  }
+                }
+              }
             }
           }
         },
@@ -232,7 +274,7 @@
     <div id="launch-screen" onclick="startLabExperience()">
       <div class="badge">KENT STATE UNIVERSITY</div>
       <h1>College of Nursing VR Lab</h1>
-      <p>Controller Onboarding & Readiness Check (1.2232)</p>
+      <p>Controller Onboarding & Readiness Check frog</p>
       <div class="click-box">Push Any Button or Tap Screen to Begin</div>
     </div>
 
@@ -240,27 +282,34 @@
       <a-light type="ambient" color="#FFF" intensity="1.0"></a-light>
       <a-light type="directional" position="0 6 -2" color="#FFF" intensity="0.6"></a-light>
 
-      <!-- Floor Plane for Teleport Collisions -->
-      <a-plane id="floor" position="0 0 0" rotation="-90 0 0" width="20" height="20" color="#060E1A"></a-plane>
+      <!-- Floor & Station Indicator -->
+      <a-plane position="0 0 0" rotation="-90 0 0" width="16" height="16" color="#060E1A"></a-plane>
       <a-plane position="0 0.02 -0.6" rotation="-90 0 0" width="1.4" height="1.4" color="#0056B3" opacity="0.9"></a-plane>
       <a-ring position="0 0.03 -0.6" rotation="-90 0 0" radius-inner="0.65" radius-outer="0.7" color="#EEB111"></a-ring>
       <a-text value="STATION CENTER" position="0 0.04 -0.6" rotation="-90 0 0" align="center" width="2.4" color="#FFFFFF" font="roboto"></a-text>
 
-      <!-- Player Rig Structure Required for Teleportation -->
+      <!-- Camera Rig -->
       <a-entity id="camera-rig" position="0 0 0">
         <a-camera position="0 1.6 0"></a-camera>
         <a-entity id="left-hand" oculus-touch-controls="hand: left; model: true" laser-controls="hand: left" raycaster="lineColor: #EEB111; lineOpacity: 0.9"></a-entity>
         <a-entity id="right-hand" oculus-touch-controls="hand: right; model: true" laser-controls="hand: right" raycaster="lineColor: #EEB111; lineOpacity: 0.9"></a-entity>
       </a-entity>
 
-      <!-- Glowing Landing Marker (Step 2.5) -->
+      <!-- Dynamic Teleport Laser Beam & Floor Reticle -->
+      <a-entity id="teleport-beam" visible="false" line="start: 0 0 0; end: 0 0 0; color: #00FFCC; opacity: 0.85"></a-entity>
+      <a-entity id="teleport-marker" visible="false">
+        <a-ring rotation="-90 0 0" radius-inner="0.25" radius-outer="0.32" color="#00FFCC"></a-ring>
+        <a-circle rotation="-90 0 0" radius="0.25" color="#00FFCC" opacity="0.4"></a-circle>
+      </a-entity>
+
+      <!-- Designated Teleport Landing Pad -->
       <a-entity id="teleport-zone" visible="false" position="2.5 0.03 -1.5">
         <a-ring rotation="-90 0 0" radius-inner="0.5" radius-outer="0.65" color="#00FFCC" animation="property: scale; to: 1.15 1.15 1.15; dir: alternate; loop: true; dur: 800"></a-ring>
         <a-circle rotation="-90 0 0" radius="0.5" color="#002664" opacity="0.7"></a-circle>
         <a-text value="TELEPORT HERE" rotation="-90 0 0" position="0 0.01 0" align="center" width="2.6" color="#00FFCC" font="roboto"></a-text>
       </a-entity>
 
-      <!-- Main Display Board -->
+      <!-- Display Board -->
       <a-entity position="0 1.65 -3.5">
         <a-plane width="4.3" height="2.46" position="0 0 -0.01" color="#EEB111"></a-plane>
         <a-plane id="slideDisplay" position="0 0 0.01" width="4.26" height="2.4" material="shader: flat; color: #FFFFFF"></a-plane>
@@ -270,7 +319,7 @@
         <a-plane id="progress-fill" position="-1.85 -1.02 0.04" scale="0 1 1" width="1.5" height="0.07" color="#EEB111" visible="true"></a-plane>
       </a-entity>
 
-      <!-- Interactive 360 Targets (Step 2) -->
+      <!-- 360 Targets -->
       <a-entity id="target-group" visible="false">
         <a-sphere class="clickable" shootable position="-3.0 1.6 0.0" radius="0.25" color="#EEB111" animation="property: position; to: -3.0 1.75 0.0; dir: alternate; loop: true; dur: 1200"></a-sphere>
         <a-sphere class="clickable" shootable position="3.0 1.6 0.0" radius="0.25" color="#EEB111" animation="property: position; to: 3.0 1.75 0.0; dir: alternate; loop: true; dur: 1400"></a-sphere>
