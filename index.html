@@ -46,13 +46,14 @@
           this.rightHand = document.querySelector('#right-hand');
 
           // Preload textures directly into Three.js texture memory
-          const loader = new THREE.TextureLoader();
-          this.loadedTextures = {
-            1: loader.load('slide1.jpg'),
-            2: loader.load('slide2.jpg'),
-            3: loader.load('slide3.jpg'),
-            4: loader.load('slide4.jpg')
-          };
+          // Change .jpg to .png (make sure the case matches your GitHub files!)
+const loader = new THREE.TextureLoader();
+this.loadedTextures = {
+  1: loader.load('slide1.png'),
+  2: loader.load('slide2.png'),
+  3: loader.load('slide3.png'),
+  4: loader.load('slide4.png')
+};
 
           // Apply first slide once mesh is ready
           if (this.slideDisplay.hasLoaded) {
@@ -182,7 +183,7 @@
     <div id="launch-screen" onclick="startLabExperience()">
       <div class="badge">KENT STATE UNIVERSITY</div>
       <h1>College of Nursing VR Lab</h1>
-      <p>Controller Onboarding & Readiness Check (ver. 1.07)</p>
+      <p>Controller Onboarding & Readiness Check (ver. 1.08)</p>
       <div class="click-box">Push Any Button or Tap Screen to Begin</div>
     </div>
 
