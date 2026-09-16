@@ -40,6 +40,10 @@
           this.teleportState = 'away';
           this.isStickActive = false;
 
+          // Dual trigger tracking for Step 3
+          this.leftTriggerDown = false;
+          this.rightTriggerDown = false;
+
           this.slideDisplay = document.querySelector('#slideDisplay');
           this.progressBar = document.querySelector('#progress-fill');
           this.progressBg = document.querySelector('#progress-bg');
@@ -103,7 +107,6 @@
             this.teleportZone.setAttribute('position', '2.5 0.03 -1.5');
             this.teleportState = 'away';
 
-            // Disable standard laser pointers
             this.leftHand.removeAttribute('cursor');
             this.rightHand.removeAttribute('cursor');
             this.leftHand.setAttribute('raycaster', 'showLine', false);
@@ -113,6 +116,8 @@
             this.teleportZone.setAttribute('visible', 'false');
             this.teleportMarker.setAttribute('visible', 'false');
             this.teleportBeam.setAttribute('visible', 'false');
+            this.leftTriggerDown = false;
+            this.rightTriggerDown = false;
           } 
           else if (this.step === 4) {
             setTimeout(() => {
@@ -131,18 +136,35 @@
             }
           };
 
-          ['#left-hand', '#right-hand'].forEach(selector => {
-            const hand = document.querySelector(selector);
-            hand.addEventListener('gripdown', () => checkGrip(true));
-            hand.addEventListener('gripup', () => checkGrip(false));
-
-            hand.addEventListener('triggerdown', () => {
-              if (this.step === 3) {
-                this.step = 4;
-                this.updateStep();
-              }
-            });
+          // Left Hand Listeners
+          this.leftHand.addEventListener('gripdown', () => checkGrip(true));
+          this.leftHand.addEventListener('gripup', () => checkGrip(false));
+          this.leftHand.addEventListener('triggerdown', () => {
+            this.leftTriggerDown = true;
+            this.checkDualTriggers();
           });
+          this.leftHand.addEventListener('triggerup', () => {
+            this.leftTriggerDown = false;
+          });
+
+          // Right Hand Listeners
+          this.rightHand.addEventListener('gripdown', () => checkGrip(true));
+          this.rightHand.addEventListener('gripup', () => checkGrip(false));
+          this.rightHand.addEventListener('triggerdown', () => {
+            this.rightTriggerDown = true;
+            this.checkDualTriggers();
+          });
+          this.rightHand.addEventListener('triggerup', () => {
+            this.rightTriggerDown = false;
+          });
+        },
+
+        checkDualTriggers: function () {
+          // Require both triggers pulled at the same time in Step 3
+          if (this.step === 3 && this.leftTriggerDown && this.rightTriggerDown) {
+            this.step = 4;
+            this.updateStep();
+          }
         },
 
         performTeleport: function () {
@@ -173,7 +195,7 @@
             }
           }
 
-          // Direct WebXR Frame Input Source Scan (Step 2.5)
+          // Teleport Aim & Ground Projection (Step 2.5)
           if (this.step === '2.5') {
             let stickPushed = false;
             let activeControllerEntity = this.rightHand;
@@ -182,8 +204,6 @@
             if (xrSession && xrSession.inputSources) {
               for (const source of xrSession.inputSources) {
                 if (source.gamepad && source.gamepad.axes) {
-                  // Quest controllers place primary thumbstick on axes [2] (X) and [3] (Y)
-                  // Fallback to axis [1] for older configurations
                   const axes = source.gamepad.axes;
                   const yAxis = axes.length >= 4 ? axes[3] : axes[1];
 
@@ -198,43 +218,59 @@
 
             if (stickPushed) {
               this.isStickActive = true;
-              this.teleportMarker.setAttribute('visible', 'true');
               this.teleportBeam.setAttribute('visible', 'true');
 
-              // Raycast from hand forward down to floor
               const handObj = activeControllerEntity.object3D;
               const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(handObj.quaternion);
               const handPos = new THREE.Vector3();
               handObj.getWorldPosition(handPos);
 
+              // Check if pointing downward at the ground plane
               if (forward.y < -0.05) {
                 const t = -handPos.y / forward.y;
                 const hitX = handPos.x + forward.x * t;
                 const hitZ = handPos.z + forward.z * t;
                 this.validTargetPos = { x: hitX, z: hitZ };
 
+                // Draw beam straight to the floor hit point and reveal marker
+                this.teleportMarker.setAttribute('visible', 'true');
                 this.teleportMarker.setAttribute('position', `${hitX} 0.03 ${hitZ}`);
                 this.teleportBeam.setAttribute('line', {
                   start: `${handPos.x} ${handPos.y} ${handPos.z}`,
                   end: `${hitX} 0.03 ${hitZ}`,
                   color: '#00FFCC'
                 });
+              } else {
+                // Not pointing at ground: Project 10m forward laser without marker
+                this.validTargetPos = null;
+                this.teleportMarker.setAttribute('visible', 'false');
+
+                const endX = handPos.x + forward.x * 10;
+                const endY = handPos.y + forward.y * 10;
+                const endZ = handPos.z + forward.z * 10;
+
+                this.teleportBeam.setAttribute('line', {
+                  start: `${handPos.x} ${handPos.y} ${handPos.z}`,
+                  end: `${endX} ${endY} ${endZ}`,
+                  color: '#EEB111'
+                });
               }
             } else {
-              // Stick released after forward push -> execute jump
+              // Stick released
               if (this.isStickActive) {
                 this.isStickActive = false;
                 this.teleportMarker.setAttribute('visible', 'false');
                 this.teleportBeam.setAttribute('visible', 'false');
 
+                // Only teleport if released while aimed at a valid floor position near the target
                 if (this.validTargetPos) {
                   const padPos = this.teleportZone.getAttribute('position');
                   const dist = Math.hypot(this.validTargetPos.x - padPos.x, this.validTargetPos.z - padPos.z);
                   
-                  // Allow up to 1.8m landing tolerance
                   if (dist < 1.8) {
                     this.performTeleport();
                   }
+                  this.validTargetPos = null;
                 }
               }
             }
@@ -274,7 +310,7 @@
     <div id="launch-screen" onclick="startLabExperience()">
       <div class="badge">KENT STATE UNIVERSITY</div>
       <h1>College of Nursing VR Lab</h1>
-      <p>Controller Onboarding & Readiness Check frog</p>
+      <p>Controller Onboarding & Readiness Check (ver. .012)</p>
       <div class="click-box">Push Any Button or Tap Screen to Begin</div>
     </div>
 
@@ -295,7 +331,7 @@
         <a-entity id="right-hand" oculus-touch-controls="hand: right; model: true" laser-controls="hand: right" raycaster="lineColor: #EEB111; lineOpacity: 0.9"></a-entity>
       </a-entity>
 
-      <!-- Dynamic Teleport Laser Beam & Floor Reticle -->
+      <!-- Dynamic Teleport Beam & Target Reticle -->
       <a-entity id="teleport-beam" visible="false" line="start: 0 0 0; end: 0 0 0; color: #00FFCC; opacity: 0.85"></a-entity>
       <a-entity id="teleport-marker" visible="false">
         <a-ring rotation="-90 0 0" radius-inner="0.25" radius-outer="0.32" color="#00FFCC"></a-ring>
