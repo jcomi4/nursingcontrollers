@@ -1,0 +1,17 @@
+{
+  "name": "KSU Nursing VR Orientation",
+  "short_name": "KSU Orient",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#002664",
+  "theme_color": "#EEB111",
+  "icons": [
+    {
+      "src": "slide1.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
