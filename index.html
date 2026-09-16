@@ -22,7 +22,7 @@
       .click-box {
         padding: 1.2rem 3rem; background: rgba(238, 177, 17, 0.15);
         border: 2px solid #EEB111; border-radius: 12px; font-size: 1.5rem; font-weight: 700;
-        color: #EEB111; transition: transform 0.15s ease, background 0.15s ease;
+        color: #EEB111; transition: transform 0.15s ease;
       }
       .click-box:hover {
         background: rgba(238, 177, 17, 0.3);
@@ -33,7 +33,7 @@
     <script>
       AFRAME.registerComponent('step-manager', {
         init: function () {
-          this.step = 1; // 1: Grip, 2: Trigger/Targets, 3: Meta Hold, 4: Done
+          this.step = 1;
           this.gripTimer = 0;
           this.metaTimer = 0;
           this.isGripping = false;
@@ -44,17 +44,11 @@
           this.stepInstruction = document.querySelector('#step-instruction');
           this.stepTip = document.querySelector('#step-tip');
           this.stepSub = document.querySelector('#step-sub');
-          this.controllerImg = document.querySelector('#controller-img');
           this.progressBar = document.querySelector('#progress-fill');
           this.progressBg = document.querySelector('#progress-bg');
           this.targetGroup = document.querySelector('#target-group');
           this.leftHand = document.querySelector('#left-hand');
           this.rightHand = document.querySelector('#right-hand');
-
-          // Photo diagram reference
-          this.images = {
-            overview: 'https://marketing.visiofy.com/hs-fs/hubfs/Tutorial%20pictures/Meta_quest_controllers.jpg?width=1200&height=627&name=Meta_quest_controllers.jpg'
-          };
 
           this.updateStepUI();
           this.bindControls();
@@ -63,17 +57,16 @@
         updateStepUI: function () {
           if (this.step === 1) {
             this.stepTitle.setAttribute('value', 'STEP 1: THE GRIP TRIGGER');
-            this.stepInstruction.setAttribute('value', 'Rest your MIDDLE finger on the SIDE button.\nSqueeze and hold to keep tools in your hand.');
+            this.stepInstruction.setAttribute('value', 'Rest your MIDDLE finger on the SIDE button.\n\nSqueeze and hold to keep tools in your hand.');
             this.stepTip.setAttribute('value', 'Tip: Do not use your index finger for this button.');
             this.stepSub.setAttribute('value', 'Action: Squeeze and HOLD for 2 seconds');
             this.stepSub.setAttribute('color', '#EEB111');
-            this.controllerImg.setAttribute('src', this.images.overview);
             this.progressBg.setAttribute('visible', 'true');
             this.progressBar.setAttribute('visible', 'true');
           } 
           else if (this.step === 2) {
             this.stepTitle.setAttribute('value', 'STEP 2: POINT & CLICK');
-            this.stepInstruction.setAttribute('value', 'Rest your INDEX finger on the FRONT top trigger.\nAim your gold laser at the 3 floating spheres.');
+            this.stepInstruction.setAttribute('value', 'Rest your INDEX finger on the FRONT top trigger.\n\nAim your gold laser at the 3 floating spheres.');
             this.stepTip.setAttribute('value', 'Tip: Pull the trigger once while aiming to select.');
             this.stepSub.setAttribute('value', 'Targets Remaining: 3');
             this.stepSub.setAttribute('color', '#00FFCC');
@@ -81,7 +74,6 @@
             this.progressBar.setAttribute('visible', 'false');
             this.targetGroup.setAttribute('visible', 'true');
 
-            // Turn on active pointing lasers
             this.leftHand.setAttribute('raycaster', 'objects: .clickable; showLine: true; far: 20');
             this.rightHand.setAttribute('raycaster', 'objects: .clickable; showLine: true; far: 20');
             this.leftHand.setAttribute('cursor', 'rayOrigin: entity');
@@ -89,9 +81,9 @@
           } 
           else if (this.step === 3) {
             this.stepTitle.setAttribute('value', 'STEP 3: RECENTER (META BUTTON)');
-            this.stepInstruction.setAttribute('value', 'Located on the flat face of the RIGHT controller.\nIf you drift from your station, stand on the center\nBLUE NUMBER PAD and HOLD the Meta button.');
-            this.stepTip.setAttribute('value', 'This resets your boundary and brings your view back to center.');
-            this.stepSub.setAttribute('value', 'Action: HOLD the Right Meta Button (or B) for 2 seconds');
+            this.stepInstruction.setAttribute('value', 'Located on the flat face of the RIGHT controller.\n\nStand on the center BLUE STATION PAD and HOLD the Meta button.');
+            this.stepTip.setAttribute('value', 'This resets your boundary and recenters your view.');
+            this.stepSub.setAttribute('value', 'Action: HOLD the Meta / B Button for 2 seconds');
             this.stepSub.setAttribute('color', '#EEB111');
             this.progressBg.setAttribute('visible', 'true');
             this.progressBar.setAttribute('visible', 'true');
@@ -100,8 +92,8 @@
           } 
           else if (this.step === 4) {
             this.stepTitle.setAttribute('value', 'ORIENTATION COMPLETE');
-            this.stepInstruction.setAttribute('value', 'Great job! You know the core controls.\nTutorial is closing...\nPlease launch INTELECT from your app library.');
-            this.stepTip.setAttribute('value', 'Remember: Smooth front = click, Side grip = grab.');
+            this.stepInstruction.setAttribute('value', 'Great job! You know the core controls.\n\nTutorial is closing...\nPlease launch INTELECT from your app library.');
+            this.stepTip.setAttribute('value', 'Remember: Front trigger = click | Side grip = hold.');
             this.stepSub.setAttribute('value', 'Ready for Simulation!');
             this.stepSub.setAttribute('color', '#00FFCC');
             this.progressBg.setAttribute('visible', 'false');
@@ -131,21 +123,18 @@
             }
           };
 
-          // Left & Right Controller Handlers
           ['#left-hand', '#right-hand'].forEach(selector => {
             const hand = document.querySelector(selector);
             hand.addEventListener('gripdown', () => checkGrip(true));
             hand.addEventListener('gripup', () => checkGrip(false));
           });
 
-          // Right Hand Listeners for Meta/B button
           const rightHand = document.querySelector('#right-hand');
           rightHand.addEventListener('bbuttondown', () => checkMeta(true));
           rightHand.addEventListener('bbuttonup', () => checkMeta(false));
           rightHand.addEventListener('abuttondown', () => checkMeta(true));
           rightHand.addEventListener('abuttonup', () => checkMeta(false));
 
-          // Also catch any button press if in 2D WebXR pre-state
           window.addEventListener('keydown', () => {
             if (document.querySelector('#launch-screen').style.display !== 'none') {
               startLabExperience();
@@ -154,12 +143,11 @@
         },
 
         tick: function (time, deltaTime) {
-          // Step 1: Grip Hold
           if (this.step === 1 && this.isGripping) {
             this.gripTimer += deltaTime;
             const progress = Math.min(this.gripTimer / 2000, 1);
             this.progressBar.setAttribute('scale', `${progress} 1 1`);
-            this.progressBar.setAttribute('position', `${-1.6 + (progress * 0.75)} -0.7 0.03`);
+            this.progressBar.setAttribute('position', `${-1.85 + (progress * 0.75)} -0.7 0.08`);
 
             if (this.gripTimer >= 2000) {
               this.isGripping = false;
@@ -168,12 +156,11 @@
             }
           }
 
-          // Step 3: Meta Button Hold (Recenter Check)
           if (this.step === 3 && this.isHoldingMeta) {
             this.metaTimer += deltaTime;
             const progress = Math.min(this.metaTimer / 2000, 1);
             this.progressBar.setAttribute('scale', `${progress} 1 1`);
-            this.progressBar.setAttribute('position', `${-1.6 + (progress * 0.75)} -0.7 0.03`);
+            this.progressBar.setAttribute('position', `${-1.85 + (progress * 0.75)} -0.7 0.08`);
 
             if (this.metaTimer >= 2000) {
               this.isHoldingMeta = false;
@@ -214,7 +201,7 @@
     </script>
   </head>
   <body>
-    <!-- 2D Initial Tap Shield: Works with ANY click/tap/button -->
+    <!-- 2D Initial Tap Shield -->
     <div id="launch-screen" onclick="startLabExperience()">
       <div class="badge">KENT STATE UNIVERSITY</div>
       <h1>College of Nursing VR Lab</h1>
@@ -224,49 +211,47 @@
 
     <!-- 3D Environment -->
     <a-scene step-manager background="color: #001233">
-      <!-- Lighting -->
-      <a-light type="ambient" color="#BACEE0" intensity="0.65"></a-light>
+      <a-light type="ambient" color="#BACEE0" intensity="0.7"></a-light>
       <a-light type="directional" position="0 5 -2" color="#FFF" intensity="0.85"></a-light>
 
-      <!-- Simulated Blue Number Pad Center Marker on Floor -->
+      <!-- Center Floor Pad -->
       <a-plane position="0 0.02 -0.8" rotation="-90 0 0" width="1.4" height="1.4" color="#0056B3" opacity="0.9"></a-plane>
       <a-ring position="0 0.03 -0.8" rotation="-90 0 0" radius-inner="0.65" radius-outer="0.7" color="#EEB111"></a-ring>
-      <a-text value="STATION CENTER" position="0 0.04 -0.8" rotation="-90 0 0" align="center" width="2.5" color="#FFFFFF" font="dejavu"></a-text>
+      <a-text value="STATION CENTER" position="0 0.04 -0.8" rotation="-90 0 0" align="center" width="2.5" color="#FFFFFF" font="roboto"></a-text>
 
-      <!-- Room Bounds -->
       <a-plane position="0 0 0" rotation="-90 0 0" width="16" height="16" color="#060E1A"></a-plane>
 
-      <!-- Controllers with Built-in Lasers -->
+      <!-- Controllers with Lasers -->
       <a-entity id="left-hand" oculus-touch-controls="hand: left; model: true" laser-controls="hand: left" raycaster="lineColor: #EEB111; lineOpacity: 0.9"></a-entity>
       <a-entity id="right-hand" oculus-touch-controls="hand: right; model: true" laser-controls="hand: right" raycaster="lineColor: #EEB111; lineOpacity: 0.9"></a-entity>
 
-      <!-- Main Instruction Board (Wide Landscape Split Layout) -->
+      <!-- Main Wide Display Board -->
       <a-entity position="0 1.6 -2.6">
-        <!-- Main Background Card -->
-        <a-plane width="4.4" height="2.4" color="#002664" opacity="0.97"></a-plane>
-        <a-plane width="4.44" height="2.44" position="0 0 -0.01" color="#EEB111"></a-plane>
+        <!-- Board Background (Z: 0) -->
+        <a-plane width="4.6" height="2.4" color="#002664" opacity="0.97"></a-plane>
+        <a-plane width="4.64" height="2.44" position="0 0 -0.01" color="#EEB111"></a-plane>
 
-        <!-- Top Header Bar -->
-        <a-text value="KENT STATE COLLEGE OF NURSING" position="-2.0 0.98 0.02" width="4.5" color="#EEB111" font="dejavu" letter-spacing="1.5"></a-text>
-        <a-line start="-2.0 0.88 0.02" end="2.0 0.88 0.02" color="#EEB111" opacity="0.4"></a-line>
+        <!-- Top Header (Z: 0.05) -->
+        <a-text value="KENT STATE COLLEGE OF NURSING" position="-2.1 0.95 0.05" width="4.5" color="#EEB111" font="roboto"></a-text>
+        <a-line start="-2.1 0.85 0.05" end="2.1 0.85 0.05" color="#EEB111" opacity="0.4"></a-line>
 
-        <!-- LEFT COLUMN: Instructions & Steps (X: -2.0 to -0.1) -->
-        <a-text id="step-title" value="STEP 1: THE GRIP TRIGGER" position="-2.0 0.65 0.02" width="4.4" color="#FFFFFF" font="dejavu"></a-text>
-        <a-text id="step-instruction" value="" position="-2.0 0.28 0.02" width="3.2" color="#E0E6ED" font="dejavu" line-height="54"></a-text>
-        <a-text id="step-tip" value="" position="-2.0 -0.18 0.02" width="2.8" color="#BACEE0" font="dejavu" line-height="46"></a-text>
-        <a-text id="step-sub" value="" position="-2.0 -0.48 0.02" width="3.4" color="#EEB111" font="dejavu"></a-text>
+        <!-- LEFT COLUMN: Dynamic Texts (All start empty, Z: 0.06, wrap-count: 26) -->
+        <a-text id="step-title" position="-2.1 0.65 0.06" width="3.2" color="#FFFFFF" font="roboto" wrap-count="26"></a-text>
+        <a-text id="step-instruction" position="-2.1 0.22 0.06" width="2.6" color="#E0E6ED" font="roboto" wrap-count="26"></a-text>
+        <a-text id="step-tip" position="-2.1 -0.22 0.06" width="2.6" color="#BACEE0" font="roboto" wrap-count="28"></a-text>
+        <a-text id="step-sub" position="-2.1 -0.52 0.06" width="3.0" color="#EEB111" font="roboto" wrap-count="30"></a-text>
 
-        <!-- Progress Hold Bar (Steps 1 & 3) -->
-        <a-plane id="progress-bg" position="-0.85 -0.7 0.02" width="1.5" height="0.08" color="#001233"></a-plane>
-        <a-plane id="progress-fill" position="-1.6 -0.7 0.03" scale="0 1 1" width="1.5" height="0.08" color="#EEB111"></a-plane>
+        <!-- Progress Hold Bar (Z: 0.07/0.08) -->
+        <a-plane id="progress-bg" position="-1.1 -0.7 0.07" width="1.5" height="0.08" color="#001233"></a-plane>
+        <a-plane id="progress-fill" position="-1.85 -0.7 0.08" scale="0 1 1" width="1.5" height="0.08" color="#EEB111"></a-plane>
 
-        <!-- RIGHT COLUMN: Clean Controller Image Card (X: 0.2 to 2.0) -->
-        <a-plane position="1.1 0.02 0.015" width="1.85" height="1.5" color="#00183F"></a-plane>
-        <a-plane position="1.1 0.02 0.014" width="1.89" height="1.54" color="#EEB111" opacity="0.5"></a-plane>
-        <a-image id="controller-img" position="1.1 0.02 0.02" width="1.75" height="1.35"></a-image>
+        <!-- RIGHT COLUMN: Isolated Controller Diagram (X: +1.15, Z: 0.05) -->
+        <a-plane position="1.15 0.0 0.04" width="1.9" height="1.55" color="#00183F"></a-plane>
+        <a-plane position="1.15 0.0 0.03" width="1.94" height="1.59" color="#EEB111" opacity="0.5"></a-plane>
+        <a-image id="controller-img" position="1.15 0.0 0.05" width="1.8" height="1.45" src="https://marketing.visiofy.com/hs-fs/hubfs/Tutorial%20pictures/Meta_quest_controllers.jpg?width=1200&height=627&name=Meta_quest_controllers.jpg"></a-image>
       </a-entity>
 
-      <!-- Step 2 Clickable Floating Targets -->
+      <!-- Targets -->
       <a-entity id="target-group" visible="false">
         <a-sphere class="clickable" shootable position="-1.6 1.6 -2.1" radius="0.22" color="#EEB111" animation="property: position; to: -1.6 1.75 -2.1; dir: alternate; loop: true; dur: 1200"></a-sphere>
         <a-sphere class="clickable" shootable position="0 2.2 -1.9" radius="0.22" color="#EEB111" animation="property: position; to: 0 2.35 -1.9; dir: alternate; loop: true; dur: 1000"></a-sphere>
