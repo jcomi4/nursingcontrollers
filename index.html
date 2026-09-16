@@ -38,7 +38,7 @@
           this.isGripping = false;
           this.targetsRemaining = 3;
           this.teleportState = 'away';
-          this.isAimingTeleport = false;
+          this.stickWasPushed = false;
 
           this.slideDisplay = document.querySelector('#slideDisplay');
           this.progressBar = document.querySelector('#progress-fill');
@@ -46,6 +46,7 @@
           this.targetGroup = document.querySelector('#target-group');
           this.teleportZone = document.querySelector('#teleport-zone');
           this.teleportMarker = document.querySelector('#teleport-marker');
+          this.teleportBeam = document.querySelector('#teleport-beam');
           this.cameraRig = document.querySelector('#camera-rig');
           this.leftHand = document.querySelector('#left-hand');
           this.rightHand = document.querySelector('#right-hand');
@@ -91,7 +92,6 @@
             this.progressBar.setAttribute('visible', 'false');
             this.targetGroup.setAttribute('visible', 'true');
 
-            // Activate pointing lasers for 360 targets
             this.leftHand.setAttribute('raycaster', 'objects: .clickable; showLine: true; far: 25');
             this.rightHand.setAttribute('raycaster', 'objects: .clickable; showLine: true; far: 25');
             this.leftHand.setAttribute('cursor', 'rayOrigin: entity');
@@ -103,7 +103,7 @@
             this.teleportZone.setAttribute('position', '2.5 0.03 -1.5');
             this.teleportState = 'away';
 
-            // Remove laser clickers so they don't interfere with teleport aim
+            // Clean laser lines for teleport mode
             this.leftHand.removeAttribute('cursor');
             this.rightHand.removeAttribute('cursor');
             this.leftHand.setAttribute('raycaster', 'showLine', false);
@@ -112,6 +112,7 @@
           else if (this.step === 3) {
             this.teleportZone.setAttribute('visible', 'false');
             this.teleportMarker.setAttribute('visible', 'false');
+            this.teleportBeam.setAttribute('visible', 'false');
           } 
           else if (this.step === 4) {
             setTimeout(() => {
@@ -135,49 +136,31 @@
             hand.addEventListener('gripdown', () => checkGrip(true));
             hand.addEventListener('gripup', () => checkGrip(false));
 
-            // In Step 3, pull trigger to advance to Step 4
+            // Trigger action
             hand.addEventListener('triggerdown', () => {
-              if (this.step === 3) {
+              // Fail-safe: if in teleport step and student clicks trigger, jump to pad
+              if (this.step === '2.5') {
+                this.performTeleportJump();
+              }
+              // Advance from Meta step to Done
+              else if (this.step === 3) {
                 this.step = 4;
                 this.updateStep();
-              }
-            });
-
-            // Dedicated thumbstick events
-            hand.addEventListener('thumbstickmoved', (e) => {
-              if (this.step !== '2.5') return;
-              if (e.detail.y < -0.4) {
-                this.isAimingTeleport = true;
-                this.activeHand = hand;
-                this.teleportMarker.setAttribute('visible', 'true');
-              } else if (this.isAimingTeleport && e.detail.y > -0.15) {
-                this.executeTeleport();
               }
             });
           });
         },
 
-        executeTeleport: function () {
-          this.isAimingTeleport = false;
-          this.teleportMarker.setAttribute('visible', 'false');
-
-          if (!this.validLandingPos) return;
-
+        performTeleportJump: function () {
           const padPos = this.teleportZone.getAttribute('position');
-          const dist = Math.hypot(this.validLandingPos.x - padPos.x, this.validLandingPos.z - padPos.z);
+          this.cameraRig.setAttribute('position', `${padPos.x} 0 ${padPos.z}`);
 
-          // If landed within 1.2m of the designated circle
-          if (dist < 1.2) {
-            this.cameraRig.setAttribute('position', `${padPos.x} 0 ${padPos.z}`);
-
-            if (this.teleportState === 'away') {
-              this.teleportState = 'home';
-              // Relocate destination back to the center pad
-              this.teleportZone.setAttribute('position', '0 0.03 -0.6');
-            } else if (this.teleportState === 'home') {
-              this.step = 3;
-              this.updateStep();
-            }
+          if (this.teleportState === 'away') {
+            this.teleportState = 'home';
+            this.teleportZone.setAttribute('position', '0 0.03 -0.6');
+          } else if (this.teleportState === 'home') {
+            this.step = 3;
+            this.updateStep();
           }
         },
 
@@ -196,48 +179,67 @@
             }
           }
 
-          // Direct Polling for WebXR Gamepads (Fallback if thumbstickmoved is dropped)
+          // Direct Hardware Polling for Thumbstick (Step 2.5)
           if (this.step === '2.5') {
-            const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-            let stickPushed = false;
-            let activeGamepadHand = null;
+            let activeStickPushed = false;
+            let pointingHand = this.rightHand;
 
+            // Direct XR Input Source Gamepad scan
+            const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
             for (let i = 0; i < gamepads.length; i++) {
               const gp = gamepads[i];
-              if (gp && gp.axes && gp.axes.length >= 4) {
-                // Check Y axis for thumbstick on XR controllers (usually axis 3)
-                const yAxis = gp.axes[3];
-                if (yAxis < -0.45) {
-                  stickPushed = true;
-                  activeGamepadHand = (gp.hand === 'left') ? this.leftHand : this.rightHand;
+              if (gp && gp.axes && gp.axes.length >= 2) {
+                // Quest controllers report Thumbstick Y on axis[3] (standard) or axis[1] (fallback)
+                const yAxis = gp.axes.length >= 4 ? gp.axes[3] : gp.axes[1];
+
+                if (yAxis < -0.4) {
+                  activeStickPushed = true;
+                  pointingHand = (gp.hand === 'left') ? this.leftHand : this.rightHand;
                   break;
                 }
               }
             }
 
-            if (stickPushed) {
-              this.isAimingTeleport = true;
-              this.activeHand = activeGamepadHand || this.rightHand;
+            if (activeStickPushed) {
+              this.stickWasPushed = true;
               this.teleportMarker.setAttribute('visible', 'true');
-            } else if (this.isAimingTeleport && !stickPushed) {
-              this.executeTeleport();
-            }
+              this.teleportBeam.setAttribute('visible', 'true');
 
-            // Raycast line down from hand to floor
-            if (this.isAimingTeleport && this.activeHand) {
-              const handObj = this.activeHand.object3D;
+              // Project beam from pointing hand forward down to floor
+              const handObj = pointingHand.object3D;
               const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(handObj.quaternion);
               const handPos = new THREE.Vector3();
               handObj.getWorldPosition(handPos);
 
-              // Downward ray intersection with ground (y = 0)
               if (forward.y < -0.05) {
                 const t = -handPos.y / forward.y;
                 const hitX = handPos.x + forward.x * t;
                 const hitZ = handPos.z + forward.z * t;
-                this.validLandingPos = { x: hitX, z: hitZ };
+                this.validLanding = { x: hitX, z: hitZ };
 
                 this.teleportMarker.setAttribute('position', `${hitX} 0.03 ${hitZ}`);
+                this.teleportBeam.setAttribute('line', {
+                  start: `${handPos.x} ${handPos.y} ${handPos.z}`,
+                  end: `${hitX} 0.03 ${hitZ}`,
+                  color: '#00FFCC'
+                });
+              }
+            } else {
+              // Stick released after being pushed forward -> Teleport!
+              if (this.stickWasPushed) {
+                this.stickWasPushed = false;
+                this.teleportMarker.setAttribute('visible', 'false');
+                this.teleportBeam.setAttribute('visible', 'false');
+
+                if (this.validLanding) {
+                  const padPos = this.teleportZone.getAttribute('position');
+                  const dist = Math.hypot(this.validLanding.x - padPos.x, this.validLanding.z - padPos.z);
+                  
+                  // If aimed within 1.4m of the target pad, snap them in
+                  if (dist < 1.4) {
+                    this.performTeleportJump();
+                  }
+                }
               }
             }
           }
@@ -276,7 +278,7 @@
     <div id="launch-screen" onclick="startLabExperience()">
       <div class="badge">KENT STATE UNIVERSITY</div>
       <h1>College of Nursing VR Lab</h1>
-      <p>Controller Onboarding & Readiness Check</p>
+      <p>Controller Onboarding & Readiness Check ver 99</p>
       <div class="click-box">Push Any Button or Tap Screen to Begin</div>
     </div>
 
@@ -297,25 +299,26 @@
         <a-entity id="right-hand" oculus-touch-controls="hand: right; model: true" laser-controls="hand: right" raycaster="lineColor: #EEB111; lineOpacity: 0.9"></a-entity>
       </a-entity>
 
-      <!-- Real-time Teleport Landing Reticle (Follows where you aim) -->
+      <!-- Dynamic Teleport Laser Beam & Floor Reticle -->
+      <a-entity id="teleport-beam" visible="false" line="start: 0 0 0; end: 0 0 0; color: #00FFCC; opacity: 0.85"></a-entity>
       <a-entity id="teleport-marker" visible="false">
-        <a-ring rotation="-90 0 0" radius-inner="0.25" radius-outer="0.32" color="#EEB111"></a-ring>
-        <a-circle rotation="-90 0 0" radius="0.25" color="#EEB111" opacity="0.4"></a-circle>
+        <a-ring rotation="-90 0 0" radius-inner="0.25" radius-outer="0.32" color="#00FFCC"></a-ring>
+        <a-circle rotation="-90 0 0" radius="0.25" color="#00FFCC" opacity="0.4"></a-circle>
       </a-entity>
 
-      <!-- Destination Target Pad (Step 2.5) -->
+      <!-- Designated Teleport Landing Pad -->
       <a-entity id="teleport-zone" visible="false" position="2.5 0.03 -1.5">
-        <a-ring rotation="-90 0 0" radius-inner="0.5" radius-outer="0.62" color="#00FFCC" animation="property: scale; to: 1.15 1.15 1.15; dir: alternate; loop: true; dur: 800"></a-ring>
-        <a-circle rotation="-90 0 0" radius="0.5" color="#002664" opacity="0.6"></a-circle>
+        <a-ring rotation="-90 0 0" radius-inner="0.5" radius-outer="0.65" color="#00FFCC" animation="property: scale; to: 1.15 1.15 1.15; dir: alternate; loop: true; dur: 800"></a-ring>
+        <a-circle rotation="-90 0 0" radius="0.5" color="#002664" opacity="0.7"></a-circle>
         <a-text value="TELEPORT HERE" rotation="-90 0 0" position="0 0.01 0" align="center" width="2.6" color="#00FFCC" font="roboto"></a-text>
       </a-entity>
 
-      <!-- Display Board -->
+      <!-- Main Presentation Board -->
       <a-entity position="0 1.65 -3.5">
         <a-plane width="4.3" height="2.46" position="0 0 -0.01" color="#EEB111"></a-plane>
         <a-plane id="slideDisplay" position="0 0 0.01" width="4.26" height="2.4" material="shader: flat; color: #FFFFFF"></a-plane>
 
-        <!-- Hold Bar -->
+        <!-- Bottom-Left Hold Bar -->
         <a-plane id="progress-bg" position="-1.1 -1.02 0.03" width="1.5" height="0.07" color="#00183F" visible="true"></a-plane>
         <a-plane id="progress-fill" position="-1.85 -1.02 0.04" scale="0 1 1" width="1.5" height="0.07" color="#EEB111" visible="true"></a-plane>
       </a-entity>
