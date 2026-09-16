@@ -2,112 +2,236 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>KSU Nursing VR Controller Orientation</title>
-    <!-- A-Frame WebXR Library -->
+    <title>KSU Nursing VR Orientation</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <style>
+      /* Fullscreen Click-Shield for Initial WebXR Launch */
+      #launch-screen {
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        background: radial-gradient(circle, #002664 0%, #001233 100%);
+        color: #FFFFFF; display: flex; flex-direction: column;
+        justify-content: center; align-items: center; font-family: 'Segoe UI', Arial, sans-serif;
+        cursor: pointer; z-index: 9999;
+      }
+      .ksu-gold { color: #EEB111; }
+      .badge {
+        background: #EEB111; color: #002664; font-weight: bold;
+        padding: 6px 16px; border-radius: 20px; font-size: 1.1rem; margin-bottom: 12px;
+      }
+      .click-box {
+        margin-top: 2rem; padding: 1.2rem 2.5rem; background: rgba(238, 177, 17, 0.15);
+        border: 2px solid #EEB111; border-radius: 8px; font-size: 1.6rem; font-weight: bold;
+      }
+    </style>
+
     <script>
-      AFRAME.registerComponent('orientation-logic', {
+      AFRAME.registerComponent('step-manager', {
         init: function () {
-          this.triggerDone = false;
-          this.gripDone = false;
-          this.menuDone = false;
+          this.step = 1; // 1: Grip, 2: Trigger/Targets, 3: Menu, 4: Done
+          this.gripTimer = 0;
+          this.isGripping = false;
+          this.targetsRemaining = 3;
 
-          this.triggerEl = document.querySelector('#trigger-text');
-          this.gripEl = document.querySelector('#grip-text');
-          this.menuEl = document.querySelector('#menu-text');
-          this.statusEl = document.querySelector('#status-text');
+          // Elements
+          this.stepTitle = document.querySelector('#step-title');
+          this.stepDesc = document.querySelector('#step-desc');
+          this.stepSub = document.querySelector('#step-sub');
+          this.diagramImg = document.querySelector('#diagram-img');
+          this.progressBar = document.querySelector('#progress-fill');
+          this.targetGroup = document.querySelector('#target-group');
+          this.leftLaser = document.querySelector('#left-laser');
+          this.rightLaser = document.querySelector('#right-laser');
 
-          const checkDone = () => {
-            if (this.triggerDone && this.gripDone && this.menuDone) {
-              this.statusEl.setAttribute('value', 'All done! Exiting to your app menu...\nPlease launch Intelect.');
-              this.statusEl.setAttribute('color', '#00FFFF');
-              
-              // Automatically exit immersive VR after 2.5 seconds
-              setTimeout(() => {
-                const scene = this.el.sceneEl;
-                if (scene.is('vr-mode')) {
-                  scene.exitVR();
-                }
-              }, 2500);
+          // Pre-generate Embedded SVG Diagrams as data URIs
+          this.diagrams = {
+            grip: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 100 100"><rect width="100" height="100" fill="%2300183f" rx="10"/><path d="M40 20 Q55 20 60 40 L60 80 Q50 90 40 85 Z" fill="%23ffffff"/><circle cx="50" cy="30" r="12" fill="%23cccccc"/><rect x="58" y="48" width="10" height="18" rx="4" fill="%23EEB111"/><text x="50" y="96" fill="%23EEB111" font-size="8" text-anchor="middle" font-weight="bold">GRIP TRIGGER (SIDE)</text></svg>',
+            trigger: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 100 100"><rect width="100" height="100" fill="%2300183f" rx="10"/><path d="M40 25 Q55 25 60 45 L60 85 Q50 95 40 90 Z" fill="%23ffffff"/><rect x="36" y="16" width="18" height="10" rx="3" fill="%23EEB111"/><circle cx="50" cy="35" r="10" fill="%23cccccc"/><text x="50" y="96" fill="%23EEB111" font-size="8" text-anchor="middle" font-weight="bold">TOP TRIGGER (FRONT)</text></svg>',
+            menu: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 100 100"><rect width="100" height="100" fill="%2300183f" rx="10"/><path d="M35 30 Q50 20 65 30 L60 80 Q50 90 40 85 Z" fill="%23ffffff"/><circle cx="45" cy="45" r="6" fill="%23EEB111"/><circle cx="55" cy="38" r="6" fill="%23cccccc"/><text x="50" y="96" fill="%23EEB111" font-size="8" text-anchor="middle" font-weight="bold">META / MENU BUTTON</text></svg>'
+          };
+
+          this.updateStepUI();
+          this.bindControls();
+        },
+
+        updateStepUI: function () {
+          if (this.step === 1) {
+            this.stepTitle.setAttribute('value', 'STEP 1: THE GRIP TRIGGER');
+            this.stepDesc.setAttribute('value', 'Located on the SIDE of the handle.\nSqueeze and HOLD with your MIDDLE finger.\nIn clinical sims, this grabs and holds patient tools.');
+            this.stepSub.setAttribute('value', 'Action: Squeeze and HOLD for 2 seconds');
+            this.stepSub.setAttribute('color', '#EEB111');
+            this.diagramImg.setAttribute('src', this.diagrams.grip);
+          } 
+          else if (this.step === 2) {
+            this.stepTitle.setAttribute('value', 'STEP 2: POINT & CLICK TRIGGER');
+            this.stepDesc.setAttribute('value', 'Located on the FRONT top of the controller.\nRest your INDEX finger here.\nAim your laser at the 3 golden targets and pull the trigger.');
+            this.stepSub.setAttribute('value', 'Targets Remaining: 3');
+            this.stepSub.setAttribute('color', '#00FFCC');
+            this.diagramImg.setAttribute('src', this.diagrams.trigger);
+            this.targetGroup.setAttribute('visible', 'true');
+            this.leftLaser.setAttribute('visible', 'true');
+            this.rightLaser.setAttribute('visible', 'true');
+          } 
+          else if (this.step === 3) {
+            this.stepTitle.setAttribute('value', 'STEP 3: THE MENU BUTTON');
+            this.stepDesc.setAttribute('value', 'Located on the flat face under your THUMB.\nUse this button if you ever need to pause,\nopen the dashboard, or recenter your view.');
+            this.stepSub.setAttribute('value', 'Action: Press the button with your thumb once');
+            this.stepSub.setAttribute('color', '#EEB111');
+            this.diagramImg.setAttribute('src', this.diagrams.menu);
+            this.targetGroup.setAttribute('visible', 'false');
+          } 
+          else if (this.step === 4) {
+            this.stepTitle.setAttribute('value', 'ORIENTATION COMPLETE');
+            this.stepDesc.setAttribute('value', 'Great job! You are ready for your clinical simulation.\n\nClosing tutorial and returning to menu...\nPlease launch INTELECT now.');
+            this.stepSub.setAttribute('value', 'Exiting VR...');
+            this.stepSub.setAttribute('color', '#00FFCC');
+            this.diagramImg.setAttribute('visible', 'false');
+            this.progressBar.setAttribute('visible', 'false');
+
+            setTimeout(() => {
+              const scene = this.el.sceneEl;
+              if (scene.is('vr-mode')) {
+                scene.exitVR();
+              }
+            }, 3000);
+          }
+        },
+
+        bindControls: function () {
+          const checkGrip = (val) => {
+            this.isGripping = val;
+            if (!val && this.step === 1) {
+              this.gripTimer = 0;
+              this.progressBar.setAttribute('scale', '0 1 1');
             }
           };
 
-          // Listen for controller inputs
-          const setupController = (controllerEl) => {
-            // Trigger (Index Finger)
-            controllerEl.addEventListener('triggerdown', () => {
-              if (!this.triggerDone) {
-                this.triggerDone = true;
-                this.triggerEl.setAttribute('value', '1. Index Trigger: [ CONFIRMED ]');
-                this.triggerEl.setAttribute('color', '#00FF00');
-                checkDone();
-              }
-            });
+          // Controller Grip Listeners
+          ['#left-hand', '#right-hand'].forEach(selector => {
+            const hand = document.querySelector(selector);
+            hand.addEventListener('gripdown', () => checkGrip(true));
+            hand.addEventListener('gripup', () => checkGrip(false));
 
-            // Grip (Middle Finger squeeze on side)
-            controllerEl.addEventListener('gripdown', () => {
-              if (!this.gripDone) {
-                this.gripDone = true;
-                this.gripEl.setAttribute('value', '2. Side Grip: [ CONFIRMED ]');
-                this.gripEl.setAttribute('color', '#00FF00');
-                checkDone();
+            // Menu / Face Buttons (X, A, or Start)
+            const handleThumb = () => {
+              if (this.step === 3) {
+                this.step = 4;
+                this.updateStepUI();
               }
-            });
+            };
+            hand.addEventListener('xbuttondown', handleThumb);
+            hand.addEventListener('abuttondown', handleThumb);
+          });
+        },
 
-            // Left Menu button / 'x' or 'a' button fallback
-            controllerEl.addEventListener('xbuttondown', () => {
-              if (!this.menuDone) {
-                this.menuDone = true;
-                this.menuEl.setAttribute('value', '3. Menu/Face Button: [ CONFIRMED ]');
-                this.menuEl.setAttribute('color', '#00FF00');
-                checkDone();
-              }
-            });
-            controllerEl.addEventListener('abuttondown', () => {
-              if (!this.menuDone) {
-                this.menuDone = true;
-                this.menuEl.setAttribute('value', '3. Menu/Face Button: [ CONFIRMED ]');
-                this.menuEl.setAttribute('color', '#00FF00');
-                checkDone();
-              }
-            });
-          };
+        tick: function (time, deltaTime) {
+          // Grip hold progress counter for Step 1
+          if (this.step === 1 && this.isGripping) {
+            this.gripTimer += deltaTime;
+            const progress = Math.min(this.gripTimer / 2000, 1);
+            this.progressBar.setAttribute('scale', `${progress} 1 1`);
+            this.progressBar.setAttribute('position', `${-0.8 + (progress * 0.8)} -0.7 0.03`);
 
-          // Attach to both left and right tracked controllers
-          const leftHand = document.querySelector('#left-hand');
-          const rightHand = document.querySelector('#right-hand');
-          setupController(leftHand);
-          setupController(rightHand);
+            if (this.gripTimer >= 2000) {
+              this.isGripping = false;
+              this.step = 2;
+              this.updateStepUI();
+            }
+          }
+        },
+
+        targetHit: function () {
+          this.targetsRemaining--;
+          this.stepSub.setAttribute('value', `Targets Remaining: ${this.targetsRemaining}`);
+          if (this.targetsRemaining <= 0) {
+            this.step = 3;
+            this.updateStepUI();
+          }
         }
       });
+
+      // Target Interaction Component
+      AFRAME.registerComponent('shootable-target', {
+        init: function () {
+          this.el.addEventListener('click', () => {
+            // Animate target destruction
+            this.el.setAttribute('animation', 'property: scale; to: 0 0 0; dur: 200; easing: easeInQuad');
+            setTimeout(() => {
+              const manager = document.querySelector('a-scene').components['step-manager'];
+              if (manager) manager.targetHit();
+              this.el.parentNode.removeChild(this.el);
+            }, 200);
+          });
+        }
+      });
+
+      function startLabExperience() {
+        document.querySelector('#launch-screen').style.display = 'none';
+        document.querySelector('a-scene').enterVR();
+      }
     </script>
   </head>
   <body>
-    <a-scene orientation-logic background="color: #1a1a24">
-      <!-- Lighting -->
-      <a-light type="ambient" color="#888"></a-light>
-      <a-light type="directional" position="0 4 -2" intensity="0.6"></a-light>
+    <!-- 2D Initial Tap-To-Launch Screen -->
+    <div id="launch-screen" onclick="startLabExperience()">
+      <div class="badge">KENT STATE UNIVERSITY</div>
+      <h1>College of Nursing VR Lab</h1>
+      <p>Controller Onboarding & Readiness Check</p>
+      <div class="click-box">Pull your <span class="ksu-gold">Front Trigger</span> to Begin</div>
+    </div>
 
-      <!-- Tracked Hands with Quest Controller 3D Models -->
-      <a-entity id="left-hand" oculus-touch-controls="hand: left; model: true"></a-entity>
-      <a-entity id="right-hand" oculus-touch-controls="hand: right; model: true"></a-entity>
+    <!-- 3D WebXR Environment -->
+    <a-scene step-manager background="color: #001233" cursor="rayOrigin: mouse">
+      <a-assets></a-assets>
 
-      <!-- Instruction Board Floating at Eye Level -->
-      <a-entity position="0 1.5 -2.2">
-        <!-- Board Background Panel -->
-        <a-plane width="3.2" height="2.2" color="#0B132B" opacity="0.95"></a-plane>
+      <!-- Kent State Branded Clinic Room -->
+      <a-plane position="0 0 0" rotation="-90 0 0" width="14" height="14" color="#0A192F"></a-plane>
+      <a-plane position="0 5 -7" width="14" height="10" color="#002664"></a-plane>
+      <a-plane position="-7 5 0" rotation="0 90 0" width="14" height="10" color="#00183f"></a-plane>
+      <a-plane position="7 5 0" rotation="0 -90 0" width="14" height="10" color="#00183f"></a-plane>
+      <a-ring position="0 0.02 0" rotation="-90 0 0" radius-inner="1.8" radius-outer="2.0" color="#EEB111"></a-ring>
 
-        <!-- Header -->
-        <a-text value="Controller Quick Check" align="center" position="0 0.8 0.02" width="5" color="#FFF" font="kelsonsans"></a-text>
-        <a-text value="Follow the prompts below using your controllers:" align="center" position="0 0.55 0.02" width="3.5" color="#AAA"></a-text>
+      <!-- Ambient and Accent Lights -->
+      <a-light type="ambient" color="#A0C4E2" intensity="0.5"></a-light>
+      <a-light type="point" position="0 4 0" color="#FFFFFF" intensity="0.8"></a-light>
 
-        <!-- Checklist Lines -->
-        <a-text id="trigger-text" value="1. Index Trigger: Squeeze your index finger" position="-1.3 0.2 0.02" width="3.5" color="#FFF"></a-text>
-        <a-text id="grip-text" value="2. Side Grip: Squeeze your middle finger on the side" position="-1.3 -0.1 0.02" width="3.5" color="#FFF"></a-text>
-        <a-text id="menu-text" value="3. Button: Press X or A with your thumb" position="-1.3 -0.4 0.02" width="3.5" color="#FFF"></a-text>
+      <!-- Tracked Hands with Quest Controller 3D Models & Lasers -->
+      <a-entity id="left-hand" oculus-touch-controls="hand: left; model: true">
+        <a-entity id="left-laser" visible="false" raycaster="objects: .clickable" line="color: #EEB111; opacity: 0.8" cursor="fuse: false"></a-entity>
+      </a-entity>
+      <a-entity id="right-hand" oculus-touch-controls="hand: right; model: true">
+        <a-entity id="right-laser" visible="false" raycaster="objects: .clickable" line="color: #EEB111; opacity: 0.8" cursor="fuse: false"></a-entity>
+      </a-entity>
 
-        <!-- Status Message -->
-        <a-text id="status-text" value="Test each control to continue" align="center" position="0 -0.8 0.02" width="3.8" color="#FFA500"></a-text>
+      <!-- Main Instruction Board Floating Straight Ahead -->
+      <a-entity position="0 1.6 -2.4">
+        <a-plane width="3.4" height="2.2" color="#002664" material="opacity: 0.95"></a-plane>
+        <a-plane width="3.44" height="2.24" position="0 0 -0.01" color="#EEB111"></a-plane>
+
+        <!-- KSU Branding Header -->
+        <a-text value="KENT STATE NURSING" align="center" position="0 0.9 0.02" width="4.5" color="#EEB111" font="kelsonsans"></a-text>
+
+        <!-- Step Title -->
+        <a-text id="step-title" value="STEP 1: THE GRIP TRIGGER" align="center" position="0 0.65 0.02" width="4" color="#FFFFFF"></a-text>
+
+        <!-- Dynamic Explanatory Text -->
+        <a-text id="step-desc" value="" align="left" position="-1.4 0.25 0.02" width="2.8" color="#D8E2DC" line-height="58"></a-text>
+
+        <!-- Action Callout -->
+        <a-text id="step-sub" value="" align="center" position="0 -0.45 0.02" width="3.6" color="#EEB111"></a-text>
+
+        <!-- Hold Progress Bar (For Step 1) -->
+        <a-plane id="progress-bg" position="0 -0.7 0.02" width="1.6" height="0.08" color="#001233"></a-plane>
+        <a-plane id="progress-fill" position="-0.8 -0.7 0.03" scale="0 1 1" width="1.6" height="0.08" color="#EEB111"></a-plane>
+
+        <!-- Procedural Controller Diagram Positioned to the Right -->
+        <a-image id="diagram-img" position="1.05 0.1 0.02" width="0.9" height="0.9"></a-image>
+      </a-entity>
+
+      <!-- Step 2 Interactive Floating Targets -->
+      <a-entity id="target-group" visible="false">
+        <a-sphere class="clickable" shootable-target position="-1.8 1.6 -2.0" radius="0.2" color="#EEB111" material="roughness: 0.2"></a-sphere>
+        <a-sphere class="clickable" shootable-target position="0 2.2 -1.8" radius="0.2" color="#EEB111" material="roughness: 0.2"></a-sphere>
+        <a-sphere class="clickable" shootable-target position="1.8 1.4 -2.0" radius="0.2" color="#EEB111" material="roughness: 0.2"></a-sphere>
       </a-entity>
     </a-scene>
   </body>
