@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>KSU Nursing VR Controller Orientation</title>
+    <!-- A-Frame WebXR Library -->
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script>
+      AFRAME.registerComponent('orientation-logic', {
+        init: function () {
+          this.triggerDone = false;
+          this.gripDone = false;
+          this.menuDone = false;
+
+          this.triggerEl = document.querySelector('#trigger-text');
+          this.gripEl = document.querySelector('#grip-text');
+          this.menuEl = document.querySelector('#menu-text');
+          this.statusEl = document.querySelector('#status-text');
+
+          const checkDone = () => {
+            if (this.triggerDone && this.gripDone && this.menuDone) {
+              this.statusEl.setAttribute('value', 'All done! Exiting to your app menu...\nPlease launch Intelect.');
+              this.statusEl.setAttribute('color', '#00FFFF');
+              
+              // Automatically exit immersive VR after 2.5 seconds
+              setTimeout(() => {
+                const scene = this.el.sceneEl;
+                if (scene.is('vr-mode')) {
+                  scene.exitVR();
+                }
+              }, 2500);
+            }
+          };
+
+          // Listen for controller inputs
+          const setupController = (controllerEl) => {
+            // Trigger (Index Finger)
+            controllerEl.addEventListener('triggerdown', () => {
+              if (!this.triggerDone) {
+                this.triggerDone = true;
+                this.triggerEl.setAttribute('value', '1. Index Trigger: [ CONFIRMED ]');
+                this.triggerEl.setAttribute('color', '#00FF00');
+                checkDone();
+              }
+            });
+
+            // Grip (Middle Finger squeeze on side)
+            controllerEl.addEventListener('gripdown', () => {
+              if (!this.gripDone) {
+                this.gripDone = true;
+                this.gripEl.setAttribute('value', '2. Side Grip: [ CONFIRMED ]');
+                this.gripEl.setAttribute('color', '#00FF00');
+                checkDone();
+              }
+            });
+
+            // Left Menu button / 'x' or 'a' button fallback
+            controllerEl.addEventListener('xbuttondown', () => {
+              if (!this.menuDone) {
+                this.menuDone = true;
+                this.menuEl.setAttribute('value', '3. Menu/Face Button: [ CONFIRMED ]');
+                this.menuEl.setAttribute('color', '#00FF00');
+                checkDone();
+              }
+            });
+            controllerEl.addEventListener('abuttondown', () => {
+              if (!this.menuDone) {
+                this.menuDone = true;
+                this.menuEl.setAttribute('value', '3. Menu/Face Button: [ CONFIRMED ]');
+                this.menuEl.setAttribute('color', '#00FF00');
+                checkDone();
+              }
+            });
+          };
+
+          // Attach to both left and right tracked controllers
+          const leftHand = document.querySelector('#left-hand');
+          const rightHand = document.querySelector('#right-hand');
+          setupController(leftHand);
+          setupController(rightHand);
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <a-scene orientation-logic background="color: #1a1a24">
+      <!-- Lighting -->
+      <a-light type="ambient" color="#888"></a-light>
+      <a-light type="directional" position="0 4 -2" intensity="0.6"></a-light>
+
+      <!-- Tracked Hands with Quest Controller 3D Models -->
+      <a-entity id="left-hand" oculus-touch-controls="hand: left; model: true"></a-entity>
+      <a-entity id="right-hand" oculus-touch-controls="hand: right; model: true"></a-entity>
+
+      <!-- Instruction Board Floating at Eye Level -->
+      <a-entity position="0 1.5 -2.2">
+        <!-- Board Background Panel -->
+        <a-plane width="3.2" height="2.2" color="#0B132B" opacity="0.95"></a-plane>
+
+        <!-- Header -->
+        <a-text value="Controller Quick Check" align="center" position="0 0.8 0.02" width="5" color="#FFF" font="kelsonsans"></a-text>
+        <a-text value="Follow the prompts below using your controllers:" align="center" position="0 0.55 0.02" width="3.5" color="#AAA"></a-text>
+
+        <!-- Checklist Lines -->
+        <a-text id="trigger-text" value="1. Index Trigger: Squeeze your index finger" position="-1.3 0.2 0.02" width="3.5" color="#FFF"></a-text>
+        <a-text id="grip-text" value="2. Side Grip: Squeeze your middle finger on the side" position="-1.3 -0.1 0.02" width="3.5" color="#FFF"></a-text>
+        <a-text id="menu-text" value="3. Button: Press X or A with your thumb" position="-1.3 -0.4 0.02" width="3.5" color="#FFF"></a-text>
+
+        <!-- Status Message -->
+        <a-text id="status-text" value="Test each control to continue" align="center" position="0 -0.8 0.02" width="3.8" color="#FFA500"></a-text>
+      </a-entity>
+    </a-scene>
+  </body>
+</html>
