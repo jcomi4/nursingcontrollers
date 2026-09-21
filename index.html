@@ -32,7 +32,6 @@
     </style>
 
     <script>
-      // Sound Synthesizer via Web Audio API (Zero External Files Needed)
       const SoundFX = {
         ctx: null,
         init: function () {
@@ -49,7 +48,7 @@
           const osc = this.ctx.createOscillator();
           const gain = this.ctx.createGain();
           osc.type = 'sine';
-          osc.frequency.setValueAtTime(880, this.ctx.currentTime); // A5 note
+          osc.frequency.setValueAtTime(880, this.ctx.currentTime);
           gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
           gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.18);
           osc.connect(gain);
@@ -61,11 +60,10 @@
           if (!this.ctx) return;
           const now = this.ctx.currentTime;
           
-          // Two-tone rising success chime
           const osc1 = this.ctx.createOscillator();
           const gain1 = this.ctx.createGain();
           osc1.type = 'sine';
-          osc1.frequency.setValueAtTime(587.33, now); // D5
+          osc1.frequency.setValueAtTime(587.33, now);
           gain1.gain.setValueAtTime(0.25, now);
           gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
           osc1.connect(gain1);
@@ -76,7 +74,7 @@
           const osc2 = this.ctx.createOscillator();
           const gain2 = this.ctx.createGain();
           osc2.type = 'sine';
-          osc2.frequency.setValueAtTime(880, now + 0.12); // A5
+          osc2.frequency.setValueAtTime(880, now + 0.12);
           gain2.gain.setValueAtTime(0.25, now + 0.12);
           gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
           osc2.connect(gain2);
@@ -93,10 +91,10 @@
           this.teleportState = 'away';
           this.isStickActive = false;
 
-          // Key and Lock State (Step 1)
+          // Lowered starting position (chest/lap level)
           this.keySolved = false;
           this.grabbedHand = null;
-          this.keyDefaultPos = new THREE.Vector3(-0.35, 1.05, -0.7);
+          this.keyDefaultPos = new THREE.Vector3(-0.35, 0.72, -0.7);
 
           // Dual trigger tracking for Step 3
           this.leftTriggerDown = false;
@@ -115,7 +113,6 @@
           this.leftHand = document.querySelector('#left-hand');
           this.rightHand = document.querySelector('#right-hand');
 
-          // Texture Loader
           const loader = new THREE.TextureLoader();
           this.loadedTextures = {
             1: loader.load('slide1.png'),
@@ -151,6 +148,7 @@
             this.keyLockGroup.setAttribute('visible', 'true');
           } 
           else if (this.step === 2) {
+            // Entire key and lock fixture disappears
             this.keyLockGroup.setAttribute('visible', 'false');
             this.targetGroup.setAttribute('visible', 'true');
 
@@ -186,7 +184,6 @@
         },
 
         bindControls: function () {
-          // Left Hand Listeners
           this.leftHand.addEventListener('gripdown', () => this.tryGrabKey(this.leftHand));
           this.leftHand.addEventListener('gripup', () => this.tryReleaseKey(this.leftHand));
           this.leftHand.addEventListener('triggerdown', () => {
@@ -197,7 +194,6 @@
             this.leftTriggerDown = false;
           });
 
-          // Right Hand Listeners
           this.rightHand.addEventListener('gripdown', () => this.tryGrabKey(this.rightHand));
           this.rightHand.addEventListener('gripup', () => this.tryReleaseKey(this.rightHand));
           this.rightHand.addEventListener('triggerdown', () => {
@@ -218,13 +214,14 @@
           const keyPos = new THREE.Vector3();
           this.keyEntity.object3D.getWorldPosition(keyPos);
 
-          if (handPos.distanceTo(keyPos) < 0.28) {
+          if (handPos.distanceTo(keyPos) < 0.32) {
             this.grabbedHand = handEntity;
             const scene = this.el.sceneEl.object3D;
             scene.attach(this.keyEntity.object3D);
             this.grabbedHand.object3D.attach(this.keyEntity.object3D);
+            // Orient forward out from the hand
             this.keyEntity.object3D.position.set(0, -0.04, -0.08);
-            this.keyEntity.object3D.rotation.set(-Math.PI / 3, 0, 0);
+            this.keyEntity.object3D.rotation.set(Math.PI / 4, 0, 0);
           }
         },
 
@@ -241,10 +238,11 @@
           const lockPos = new THREE.Vector3();
           this.lockEntity.object3D.getWorldPosition(lockPos);
 
-          // If dropped near the keyhole
-          if (keyPos.distanceTo(lockPos) < 0.25) {
+          // Dropped within range of the keyhole
+          if (keyPos.distanceTo(lockPos) < 0.28) {
             this.keySolved = true;
-            this.keyEntity.object3D.position.set(0.35, 1.05, -0.63);
+            // Snap key inside the lock facing forward
+            this.keyEntity.object3D.position.set(0.35, 0.72, -0.63);
             this.keyEntity.object3D.rotation.set(0, 0, 0);
 
             SoundFX.playStepComplete();
@@ -252,9 +250,9 @@
             setTimeout(() => {
               this.step = 2;
               this.updateStep(false);
-            }, 900);
+            }, 800);
           } else {
-            // Snap back to pedestal
+            // Snap back to left pedestal
             this.keyEntity.object3D.position.copy(this.keyDefaultPos);
             this.keyEntity.object3D.rotation.set(0, 0, 0);
           }
@@ -282,7 +280,6 @@
         },
 
         tick: function (time, deltaTime) {
-          // Teleport Aim & Ground Projection (Step 2.5)
           if (this.step === '2.5') {
             let stickPushed = false;
             let activeControllerEntity = this.rightHand;
@@ -394,7 +391,7 @@
     <div id="launch-screen" onclick="startLabExperience()">
       <div class="badge">KENT STATE UNIVERSITY</div>
       <h1>College of Nursing VR Lab</h1>
-      <p>Controller Onboarding & Readiness Check (ver. 1.18) | Developed by John Comi</p>
+      <p>Controller Onboarding & Readiness Check (ver. 1.16) | Developed by John Comi</p>
       <div class="click-box">Push Any Button or Tap Screen to Begin</div>
     </div>
 
@@ -415,27 +412,27 @@
         <a-entity id="right-hand" oculus-touch-controls="hand: right; model: true" laser-controls="hand: right" raycaster="lineColor: #EEB111; lineOpacity: 0.9"></a-entity>
       </a-entity>
 
-      <!-- Step 1: Interactive Key & Lock Pedestals -->
+      <!-- Step 1: Lowered Interactive Key & Lock Pedestals (Height adjusted down to 0.70m) -->
       <a-entity id="key-lock-group" visible="true">
-        <!-- Left Table / Pedestal for Key -->
-        <a-cylinder position="-0.35 0.45 -0.7" radius="0.16" height="0.9" color="#00183F"></a-cylinder>
-        <a-cylinder position="-0.35 0.91 -0.7" radius="0.18" height="0.03" color="#EEB111"></a-cylinder>
+        <!-- Left Pedestal -->
+        <a-cylinder position="-0.35 0.32 -0.7" radius="0.16" height="0.64" color="#00183F"></a-cylinder>
+        <a-cylinder position="-0.35 0.65 -0.7" radius="0.18" height="0.02" color="#EEB111"></a-cylinder>
 
-        <!-- Right Table / Pedestal for Lock -->
-        <a-cylinder position="0.35 0.45 -0.7" radius="0.16" height="0.9" color="#00183F"></a-cylinder>
-        <a-cylinder position="0.35 0.91 -0.7" radius="0.18" height="0.03" color="#EEB111"></a-cylinder>
+        <!-- Right Pedestal -->
+        <a-cylinder position="0.35 0.32 -0.7" radius="0.16" height="0.64" color="#00183F"></a-cylinder>
+        <a-cylinder position="0.35 0.65 -0.7" radius="0.18" height="0.02" color="#EEB111"></a-cylinder>
 
-        <!-- The Grabbable Key -->
-        <a-entity id="key-entity" position="-0.35 1.05 -0.7">
-          <a-torus radius="0.035" radius-tubular="0.008" color="#EEB111" metalness="0.8" roughness="0.2" rotation="0 90 0"></a-torus>
-          <a-cylinder position="0 0 0.06" radius="0.007" height="0.09" color="#EEB111" metalness="0.8" roughness="0.2" rotation="90 0 0"></a-cylinder>
-          <a-box position="0 -0.012 0.09" depth="0.02" width="0.007" height="0.016" color="#EEB111" metalness="0.8" roughness="0.2"></a-box>
+        <!-- Grabbable Key (Rotated 180°: Ring closest to student at z=-0.04, shaft pointing forward to +z) -->
+        <a-entity id="key-entity" position="-0.35 0.72 -0.7">
+          <a-torus position="0 0 -0.05" radius="0.035" radius-tubular="0.008" color="#EEB111" metalness="0.8" roughness="0.2" rotation="0 90 0"></a-torus>
+          <a-cylinder position="0 0 0.01" radius="0.007" height="0.09" color="#EEB111" metalness="0.8" roughness="0.2" rotation="90 0 0"></a-cylinder>
+          <a-box position="0 -0.012 0.04" depth="0.02" width="0.007" height="0.016" color="#EEB111" metalness="0.8" roughness="0.2"></a-box>
         </a-entity>
 
-        <!-- The Lock Block -->
-        <a-entity id="lock-entity" position="0.35 1.05 -0.7">
-          <a-box width="0.16" height="0.2" depth="0.12" color="#002664" roughness="0.3"></a-box>
-          <!-- Keyhole Inset -->
+        <!-- Lock Block (Rotated & centered to receive forward-facing key) -->
+        <a-entity id="lock-entity" position="0.35 0.72 -0.7">
+          <a-box width="0.16" height="0.18" depth="0.12" color="#002664" roughness="0.3"></a-box>
+          <!-- Keyhole Inset facing toward user -->
           <a-box position="0 0 0.061" width="0.02" height="0.07" depth="0.01" color="#050505"></a-box>
         </a-entity>
       </a-entity>
