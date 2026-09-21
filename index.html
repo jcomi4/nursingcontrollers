@@ -149,7 +149,6 @@
             this.lockEntity.object3D.visible = true;
           } 
           else if (this.step === 2) {
-            // Force invisible at both A-Frame and Three.js object graph levels
             this.keyLockGroup.setAttribute('visible', 'false');
             this.keyLockGroup.object3D.visible = false;
             this.keyEntity.object3D.visible = false;
@@ -225,9 +224,9 @@
             scene.attach(this.keyEntity.object3D);
             this.grabbedHand.object3D.attach(this.keyEntity.object3D);
 
-            // Ring sits in hand, blade points straight out forward from controller
+            // Ring handle in palm, pointy shaft directly forward out into world (-Z)
             this.keyEntity.object3D.position.set(0, -0.02, -0.05);
-            this.keyEntity.object3D.rotation.set(0, -Math.PI / 2, 0);
+            this.keyEntity.object3D.rotation.set(0, 0, 0);
           }
         },
 
@@ -244,13 +243,13 @@
           const lockPos = new THREE.Vector3();
           this.lockEntity.object3D.getWorldPosition(lockPos);
 
-          // Check insertion into keyhole
+          // Check if placed into keyhole
           if (keyPos.distanceTo(lockPos) < 0.28) {
             this.keySolved = true;
             
-            // Snap key directly into the lock hole facing inward
-            this.keyEntity.object3D.position.set(0.35, 0.72, -0.63);
-            this.keyEntity.object3D.rotation.set(0, -Math.PI / 2, 0);
+            // Snaps straight into front face of the lock
+            this.keyEntity.object3D.position.set(0.35, 0.72, -0.66);
+            this.keyEntity.object3D.rotation.set(0, 0, 0);
 
             SoundFX.playStepComplete();
 
@@ -259,7 +258,7 @@
               this.updateStep(false);
             }, 800);
           } else {
-            // Snap back to left pedestal pointing toward the lock
+            // Snap back to left pedestal
             this.keyEntity.object3D.position.copy(this.keyDefaultPos);
             this.keyEntity.object3D.rotation.set(0, 0, 0);
           }
@@ -361,15 +360,6 @@
               }
             }
           }
-        },
-
-        targetHit: function () {
-          SoundFX.playTargetHit();
-          this.targetsRemaining--;
-          if (this.targetsRemaining <= 0) {
-            this.step = '2.5';
-            this.updateStep(true);
-          }
         }
       });
 
@@ -398,7 +388,7 @@
     <div id="launch-screen" onclick="startLabExperience()">
       <div class="badge">KENT STATE UNIVERSITY</div>
       <h1>College of Nursing VR Lab</h1>
-      <p>Controller Onboarding & Readiness Check (ver. 1.17) | Developed by John Comi</p>
+      <p>Controller Onboarding & Readiness Check (ver. 1.18) | Developed by John Comi</p>
       <div class="click-box">Push Any Button or Tap Screen to Begin</div>
     </div>
 
@@ -419,7 +409,7 @@
         <a-entity id="right-hand" oculus-touch-controls="hand: right; model: true" laser-controls="hand: right" raycaster="lineColor: #EEB111; lineOpacity: 0.9"></a-entity>
       </a-entity>
 
-      <!-- Step 1: Lowered Interactive Key & Lock Pedestals -->
+      <!-- Step 1: Pedestals, Key & Lock Block -->
       <a-entity id="key-lock-group" visible="true">
         <!-- Left Pedestal -->
         <a-cylinder position="-0.35 0.32 -0.7" radius="0.16" height="0.64" color="#00183F"></a-cylinder>
@@ -429,21 +419,21 @@
         <a-cylinder position="0.35 0.32 -0.7" radius="0.16" height="0.64" color="#00183F"></a-cylinder>
         <a-cylinder position="0.35 0.65 -0.7" radius="0.18" height="0.02" color="#EEB111"></a-cylinder>
 
-        <!-- Key: Ring handle at origin, shaft pointing along +X towards the lock -->
+        <!-- Key: Ring handle at player's side (z=0.04), pointy shaft points forward into room (-Z) -->
         <a-entity id="key-entity" position="-0.35 0.72 -0.7">
-          <!-- Ring (Grip Handle) -->
-          <a-torus position="0 0 0" radius="0.035" radius-tubular="0.008" color="#EEB111" metalness="0.8" roughness="0.2" rotation="90 0 0"></a-torus>
-          <!-- Shaft pointing directly toward right (+X) -->
-          <a-cylinder position="0.06 0 0" radius="0.007" height="0.08" color="#EEB111" metalness="0.8" roughness="0.2" rotation="0 0 -90"></a-cylinder>
-          <!-- Key teeth pointing downward at tip -->
-          <a-box position="0.09 -0.012 0" width="0.02" height="0.016" depth="0.007" color="#EEB111" metalness="0.8" roughness="0.2"></a-box>
+          <!-- Ring Handle (where fingers grasp) -->
+          <a-torus position="0 0 0.04" radius="0.035" radius-tubular="0.008" color="#EEB111" metalness="0.8" roughness="0.2" rotation="0 90 0"></a-torus>
+          <!-- Shaft pointing forward (-Z) -->
+          <a-cylinder position="0 0 -0.02" radius="0.007" height="0.08" color="#EEB111" metalness="0.8" roughness="0.2" rotation="90 0 0"></a-cylinder>
+          <!-- Teeth pointing downward at the front tip -->
+          <a-box position="0 -0.014 -0.05" width="0.007" height="0.016" depth="0.02" color="#EEB111" metalness="0.8" roughness="0.2"></a-box>
         </a-entity>
 
-        <!-- Lock Box (Keyhole facing left toward the key) -->
+        <!-- Lock Box (Keyhole directly on the front face looking at player) -->
         <a-entity id="lock-entity" position="0.35 0.72 -0.7">
-          <a-box width="0.12" height="0.18" depth="0.16" color="#002664" roughness="0.3"></a-box>
-          <!-- Keyhole Inset on the -X face pointing toward left pedestal -->
-          <a-box position="-0.061 0 0" width="0.01" height="0.07" depth="0.02" color="#050505"></a-box>
+          <a-box width="0.16" height="0.18" depth="0.12" color="#002664" roughness="0.3"></a-box>
+          <!-- Keyhole Inset on the FRONT face (+Z toward player) -->
+          <a-box position="0 0 0.061" width="0.018" height="0.07" depth="0.01" color="#050505"></a-box>
         </a-entity>
       </a-entity>
 
