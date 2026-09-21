@@ -19,9 +19,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Scaffold Native Quest WebXR Wrapper
         run: |
           mkdir -p app/src/main/java/edu/kent/nursing/controllers
@@ -68,7 +65,7 @@ jobs:
           </manifest>
           EOF
 
-          # Generate Main Activity to launch WebXR in Quest Browser / WebView
+          # Generate Main Activity to launch WebXR in Quest Browser
           cat << 'EOF' > app/src/main/java/edu/kent/nursing/controllers/MainActivity.java
           package edu.kent.nursing.controllers;
 
@@ -156,8 +153,13 @@ jobs:
           -storepass ksunursing -keypass ksunursing \
           -dname "CN=KSU, OU=Nursing, O=Kent State University, L=Kent, S=OH, C=US"
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
       - name: Build Signed APK with Gradle
         run: gradle assembleRelease
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
 
       - name: Calculate SHA256 Hash
         id: hash
