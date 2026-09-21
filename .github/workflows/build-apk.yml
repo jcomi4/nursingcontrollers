@@ -19,105 +19,84 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Scaffold Native Quest WebView App
+      - name: Scaffold Horizon WebXR Native Launcher
         run: |
           mkdir -p app/src/main/java/edu/kent/nursing/controllers
           mkdir -p app/src/main/res/values
-          mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/mipmap-xxxhdpi
 
-          # Icon
+          # App Icon
           curl -s -L "https://jcomi4.github.io/nursingcontrollers/slide1.png" -o app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
 
-          # App Strings
           cat << 'EOF' > app/src/main/res/values/strings.xml
           <resources>
               <string name="app_name">KSU Nursing VR Orientation</string>
           </resources>
           EOF
 
-          # Fullscreen layout
-          cat << 'EOF' > app/src/main/res/layout/activity_main.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent"
-              android:layout_height="match_parent"
-              android:background="#002664">
-              <WebView
-                  android:id="@+id/webview"
-                  android:layout_width="match_parent"
-                  android:layout_height="match_parent" />
-          </FrameLayout>
-          EOF
-
-          # Standard Android Manifest without blocking VR tags
+          # Manifest configured for Horizon OS WebXR immersive delegation
           cat << 'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET" />
-              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-feature android:name="android.hardware.vr.headtracking" android:required="true" android:version="1" />
               
               <application
                   android:allowBackup="true"
                   android:icon="@mipmap/ic_launcher"
                   android:label="@string/app_name"
-                  android:hardwareAccelerated="true"
-                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                  android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+                  
+                  <meta-data android:name="com.oculus.supportedPlatform" android:value="quest|quest2|questpro|quest3" />
+                  
                   <activity
                       android:name=".MainActivity"
                       android:exported="true"
+                      android:theme="@android:style/Theme.Translucent.NoTitleBar"
+                      android:launchMode="singleTask"
                       android:screenOrientation="landscape"
                       android:configChanges="density|keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|uiMode">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
+                          <category android:name="com.oculus.intent.category.VR" />
                       </intent-filter>
                   </activity>
               </application>
           </manifest>
           EOF
 
-          # MainActivity with hardware acceleration & WebGL/WebXR settings
+          # MainActivity passes an immersive WebXR launch intent directly to the Quest VR compositor
           cat << 'EOF' > app/src/main/java/edu/kent/nursing/controllers/MainActivity.java
           package edu.kent.nursing.controllers;
 
           import android.app.Activity;
+          import android.content.Intent;
+          import android.net.Uri;
           import android.os.Bundle;
-          import android.webkit.WebChromeClient;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
 
           public class MainActivity extends Activity {
-              private WebView webView;
-
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
-                  setContentView(R.layout.activity_main);
+                  
+                  Uri vrUri = Uri.parse("https://jcomi4.github.io/nursingcontrollers/");
+                  Intent intent = new Intent(Intent.ACTION_VIEW, vrUri);
+                  
+                  // Target Horizon OS internal browser engine specifically for VR presentation
+                  intent.setPackage("com.oculus.browser");
+                  intent.putExtra("enable_vr", true);
+                  intent.putExtra("auto_enter_vr", true);
+                  intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
-                  webView = findViewById(R.id.webview);
-                  WebSettings settings = webView.getSettings();
-                  settings.setJavaScriptEnabled(true);
-                  settings.setDomStorageEnabled(true);
-                  settings.setDatabaseEnabled(true);
-                  settings.setMediaPlaybackRequiresUserGesture(false);
-                  settings.setAllowFileAccess(true);
-                  settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-
-                  webView.setWebViewClient(new WebViewClient());
-                  webView.setWebChromeClient(new WebChromeClient());
-
-                  webView.loadUrl("https://jcomi4.github.io/nursingcontrollers/");
-              }
-
-              @Override
-              public void onBackPressed() {
-                  if (webView.canGoBack()) {
-                      webView.goBack();
-                  } else {
-                      super.onBackPressed();
+                  try {
+                      startActivity(intent);
+                  } catch (Exception e) {
+                      Intent fallback = new Intent(Intent.ACTION_VIEW, vrUri);
+                      fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                      startActivity(fallback);
                   }
+                  finish();
               }
           }
           EOF
@@ -153,8 +132,8 @@ jobs:
                   applicationId "edu.kent.nursing.controllers"
                   minSdk 29
                   targetSdk 34
-                  versionCode 2
-                  versionName "1.0.1"
+                  versionCode 3
+                  versionName "1.0.2"
               }
 
               signingConfigs {
@@ -203,8 +182,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.1
-          name: "KSU Orientation Release v1.0.1"
+          tag_name: v1.0.2
+          name: "KSU Orientation Release v1.0.2"
           body: "SHA256 Hash: ${{ env.SHA256 }}"
           files: app-release-signed.apk
         env:
