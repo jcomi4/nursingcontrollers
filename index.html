@@ -91,12 +91,10 @@
           this.teleportState = 'away';
           this.isStickActive = false;
 
-          // Lowered starting position (chest/lap level)
           this.keySolved = false;
           this.grabbedHand = null;
           this.keyDefaultPos = new THREE.Vector3(-0.35, 0.72, -0.7);
 
-          // Dual trigger tracking for Step 3
           this.leftTriggerDown = false;
           this.rightTriggerDown = false;
 
@@ -146,10 +144,17 @@
 
           if (this.step === 1) {
             this.keyLockGroup.setAttribute('visible', 'true');
+            this.keyLockGroup.object3D.visible = true;
+            this.keyEntity.object3D.visible = true;
+            this.lockEntity.object3D.visible = true;
           } 
           else if (this.step === 2) {
-            // Entire key and lock fixture disappears
+            // Force invisible at both A-Frame and Three.js object graph levels
             this.keyLockGroup.setAttribute('visible', 'false');
+            this.keyLockGroup.object3D.visible = false;
+            this.keyEntity.object3D.visible = false;
+            this.lockEntity.object3D.visible = false;
+
             this.targetGroup.setAttribute('visible', 'true');
 
             this.leftHand.setAttribute('raycaster', 'objects: .clickable; showLine: true; far: 25');
@@ -219,9 +224,10 @@
             const scene = this.el.sceneEl.object3D;
             scene.attach(this.keyEntity.object3D);
             this.grabbedHand.object3D.attach(this.keyEntity.object3D);
-            // Orient forward out from the hand
-            this.keyEntity.object3D.position.set(0, -0.04, -0.08);
-            this.keyEntity.object3D.rotation.set(Math.PI / 4, 0, 0);
+
+            // Ring sits in hand, blade points straight out forward from controller
+            this.keyEntity.object3D.position.set(0, -0.02, -0.05);
+            this.keyEntity.object3D.rotation.set(0, -Math.PI / 2, 0);
           }
         },
 
@@ -238,12 +244,13 @@
           const lockPos = new THREE.Vector3();
           this.lockEntity.object3D.getWorldPosition(lockPos);
 
-          // Dropped within range of the keyhole
+          // Check insertion into keyhole
           if (keyPos.distanceTo(lockPos) < 0.28) {
             this.keySolved = true;
-            // Snap key inside the lock facing forward
+            
+            // Snap key directly into the lock hole facing inward
             this.keyEntity.object3D.position.set(0.35, 0.72, -0.63);
-            this.keyEntity.object3D.rotation.set(0, 0, 0);
+            this.keyEntity.object3D.rotation.set(0, -Math.PI / 2, 0);
 
             SoundFX.playStepComplete();
 
@@ -252,7 +259,7 @@
               this.updateStep(false);
             }, 800);
           } else {
-            // Snap back to left pedestal
+            // Snap back to left pedestal pointing toward the lock
             this.keyEntity.object3D.position.copy(this.keyDefaultPos);
             this.keyEntity.object3D.rotation.set(0, 0, 0);
           }
@@ -391,7 +398,7 @@
     <div id="launch-screen" onclick="startLabExperience()">
       <div class="badge">KENT STATE UNIVERSITY</div>
       <h1>College of Nursing VR Lab</h1>
-      <p>Controller Onboarding & Readiness Check (ver. 1.16) | Developed by John Comi</p>
+      <p>Controller Onboarding & Readiness Check (ver. 1.17) | Developed by John Comi</p>
       <div class="click-box">Push Any Button or Tap Screen to Begin</div>
     </div>
 
@@ -412,7 +419,7 @@
         <a-entity id="right-hand" oculus-touch-controls="hand: right; model: true" laser-controls="hand: right" raycaster="lineColor: #EEB111; lineOpacity: 0.9"></a-entity>
       </a-entity>
 
-      <!-- Step 1: Lowered Interactive Key & Lock Pedestals (Height adjusted down to 0.70m) -->
+      <!-- Step 1: Lowered Interactive Key & Lock Pedestals -->
       <a-entity id="key-lock-group" visible="true">
         <!-- Left Pedestal -->
         <a-cylinder position="-0.35 0.32 -0.7" radius="0.16" height="0.64" color="#00183F"></a-cylinder>
@@ -422,18 +429,21 @@
         <a-cylinder position="0.35 0.32 -0.7" radius="0.16" height="0.64" color="#00183F"></a-cylinder>
         <a-cylinder position="0.35 0.65 -0.7" radius="0.18" height="0.02" color="#EEB111"></a-cylinder>
 
-        <!-- Grabbable Key (Rotated 180°: Ring closest to student at z=-0.04, shaft pointing forward to +z) -->
+        <!-- Key: Ring handle at origin, shaft pointing along +X towards the lock -->
         <a-entity id="key-entity" position="-0.35 0.72 -0.7">
-          <a-torus position="0 0 -0.05" radius="0.035" radius-tubular="0.008" color="#EEB111" metalness="0.8" roughness="0.2" rotation="0 90 0"></a-torus>
-          <a-cylinder position="0 0 0.01" radius="0.007" height="0.09" color="#EEB111" metalness="0.8" roughness="0.2" rotation="90 0 0"></a-cylinder>
-          <a-box position="0 -0.012 0.04" depth="0.02" width="0.007" height="0.016" color="#EEB111" metalness="0.8" roughness="0.2"></a-box>
+          <!-- Ring (Grip Handle) -->
+          <a-torus position="0 0 0" radius="0.035" radius-tubular="0.008" color="#EEB111" metalness="0.8" roughness="0.2" rotation="90 0 0"></a-torus>
+          <!-- Shaft pointing directly toward right (+X) -->
+          <a-cylinder position="0.06 0 0" radius="0.007" height="0.08" color="#EEB111" metalness="0.8" roughness="0.2" rotation="0 0 -90"></a-cylinder>
+          <!-- Key teeth pointing downward at tip -->
+          <a-box position="0.09 -0.012 0" width="0.02" height="0.016" depth="0.007" color="#EEB111" metalness="0.8" roughness="0.2"></a-box>
         </a-entity>
 
-        <!-- Lock Block (Rotated & centered to receive forward-facing key) -->
+        <!-- Lock Box (Keyhole facing left toward the key) -->
         <a-entity id="lock-entity" position="0.35 0.72 -0.7">
-          <a-box width="0.16" height="0.18" depth="0.12" color="#002664" roughness="0.3"></a-box>
-          <!-- Keyhole Inset facing toward user -->
-          <a-box position="0 0 0.061" width="0.02" height="0.07" depth="0.01" color="#050505"></a-box>
+          <a-box width="0.12" height="0.18" depth="0.16" color="#002664" roughness="0.3"></a-box>
+          <!-- Keyhole Inset on the -X face pointing toward left pedestal -->
+          <a-box position="-0.061 0 0" width="0.01" height="0.07" depth="0.02" color="#050505"></a-box>
         </a-entity>
       </a-entity>
 
