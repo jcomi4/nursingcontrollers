@@ -34,6 +34,7 @@
     <script>
       const SoundFX = {
         ctx: null,
+        bgMusic: null,
         init: function () {
           if (!this.ctx) {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -41,6 +42,18 @@
           }
           if (this.ctx.state === 'suspended') {
             this.ctx.resume();
+          }
+          if (!this.bgMusic) {
+            this.bgMusic = new Audio('music.mp3');
+            this.bgMusic.loop = true;
+            this.bgMusic.volume = 0.15; // Soft ambient background level
+          }
+          this.bgMusic.play().catch(() => {});
+        },
+        stopMusic: function () {
+          if (this.bgMusic) {
+            this.bgMusic.pause();
+            this.bgMusic.currentTime = 0;
           }
         },
         playTargetHit: function () {
@@ -181,6 +194,7 @@
           } 
           else if (this.step === 4) {
             setTimeout(() => {
+              SoundFX.stopMusic();
               const scene = this.el.sceneEl;
               if (scene.is('vr-mode')) scene.exitVR();
             }, 5000);
@@ -244,6 +258,7 @@
 
           if (keyPos.distanceTo(lockPos) < 0.28) {
             this.keySolved = true;
+            
             this.keyEntity.object3D.position.set(0.35, 0.72, -0.66);
             this.keyEntity.object3D.rotation.set(0, 0, 0);
 
@@ -374,10 +389,8 @@
             if (this.isHit) return;
             this.isHit = true;
 
-            // Remove clickable class immediately to prevent multi-triggering
             this.el.classList.remove('clickable');
 
-            // Play one-shot shrink animation using an isolated namespace
             this.el.setAttribute('animation__shrink', {
               property: 'scale',
               to: '0 0 0',
@@ -410,11 +423,10 @@
     <div id="launch-screen" onclick="startLabExperience()">
       <div class="badge">KENT STATE UNIVERSITY</div>
       <h1>College of Nursing VR Lab</h1>
-      <p>Controller Onboarding & Readiness Check (ver. 1.21) | Developed by John Comi</p>
+      <p>Controller Onboarding & Readiness Check (ver. 1.22) | Developed by John Comi</p>
       <div class="click-box">Push Any Button or Tap Screen to Begin</div>
     </div>
 
-    <!-- WebXR Local-Floor alignment -->
     <a-scene step-manager webxr="referenceSpaceType: local-floor" background="color: #030A16">
       <a-light type="ambient" color="#A0B8D9" intensity="0.85"></a-light>
       <a-light type="directional" position="2 7 1" color="#FFF8E7" intensity="0.75"></a-light>
@@ -496,7 +508,7 @@
         <a-plane id="slideDisplay" position="0 0 0.01" width="4.76" height="2.68" material="shader: flat; color: #FFFFFF"></a-plane>
       </a-entity>
 
-      <!-- 360 Targets (with isolated position idle animation) -->
+      <!-- 360 Targets -->
       <a-entity id="target-group" visible="false">
         <a-sphere class="clickable" shootable position="-3.2 1.6 0.0" radius="0.26" color="#EEB111" animation__hover="property: position; to: -3.2 1.75 0.0; dir: alternate; loop: true; dur: 1200"></a-sphere>
         <a-sphere class="clickable" shootable position="3.2 1.6 0.0" radius="0.26" color="#EEB111" animation__hover="property: position; to: 3.2 1.75 0.0; dir: alternate; loop: true; dur: 1400"></a-sphere>
