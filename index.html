@@ -46,7 +46,7 @@
           if (!this.bgMusic) {
             this.bgMusic = new Audio('music.mp3');
             this.bgMusic.loop = true;
-            this.bgMusic.volume = 0.15; // Soft ambient background level
+            this.bgMusic.volume = 0.15;
           }
           this.bgMusic.play().catch(() => {});
         },
@@ -116,6 +116,7 @@
           this.keyLockGroup = document.querySelector('#key-lock-group');
           this.keyEntity = document.querySelector('#key-entity');
           this.lockEntity = document.querySelector('#lock-entity');
+          this.loadingBillboard = document.querySelector('#loading-billboard');
 
           this.teleportZone = document.querySelector('#teleport-zone');
           this.teleportMarker = document.querySelector('#teleport-marker');
@@ -126,9 +127,10 @@
 
           const loader = new THREE.TextureLoader();
           this.loadedTextures = {
-            1: loader.load('slide1.png'),
+            1: loader.load('slide1.png', () => this.hideLoadingScreen()),
             2: loader.load('slide2.png'),
             '2.5': loader.load('slide2_5.png'),
+            '2.7': loader.load('slide2_7.png'),
             3: loader.load('slide3.png'),
             4: loader.load('slide4.png')
           };
@@ -141,6 +143,20 @@
 
           this.updateStep(false);
           this.bindControls();
+        },
+
+        hideLoadingScreen: function () {
+          if (this.loadingBillboard) {
+            this.loadingBillboard.setAttribute('animation__fade', {
+              property: 'scale',
+              to: '0 0 0',
+              dur: 400,
+              easing: 'easeInQuad'
+            });
+            setTimeout(() => {
+              this.loadingBillboard.setAttribute('visible', 'false');
+            }, 450);
+          }
         },
 
         applyTexture: function (stepKey) {
@@ -184,11 +200,17 @@
             this.rightHand.removeAttribute('cursor');
             this.leftHand.setAttribute('raycaster', 'showLine', false);
             this.rightHand.setAttribute('raycaster', 'showLine', false);
-          } 
-          else if (this.step === 3) {
+          }
+          else if (this.step === '2.7') {
+            // Volume slider instruction step
             this.teleportZone.setAttribute('visible', 'false');
             this.teleportMarker.setAttribute('visible', 'false');
             this.teleportBeam.setAttribute('visible', 'false');
+            this.leftTriggerDown = false;
+            this.rightTriggerDown = false;
+          }
+          else if (this.step === 3) {
+            // Meta button instruction step
             this.leftTriggerDown = false;
             this.rightTriggerDown = false;
           } 
@@ -206,7 +228,7 @@
           this.leftHand.addEventListener('gripup', () => this.tryReleaseKey(this.leftHand));
           this.leftHand.addEventListener('triggerdown', () => {
             this.leftTriggerDown = true;
-            this.checkDualTriggers();
+            this.checkTriggers();
           });
           this.leftHand.addEventListener('triggerup', () => {
             this.leftTriggerDown = false;
@@ -216,7 +238,7 @@
           this.rightHand.addEventListener('gripup', () => this.tryReleaseKey(this.rightHand));
           this.rightHand.addEventListener('triggerdown', () => {
             this.rightTriggerDown = true;
-            this.checkDualTriggers();
+            this.checkTriggers();
           });
           this.rightHand.addEventListener('triggerup', () => {
             this.rightTriggerDown = false;
@@ -274,8 +296,14 @@
           }
         },
 
-        checkDualTriggers: function () {
-          if (this.step === 3 && this.leftTriggerDown && this.rightTriggerDown) {
+        checkTriggers: function () {
+          // Volume Slider Step: Advance on dual triggers
+          if (this.step === '2.7' && this.leftTriggerDown && this.rightTriggerDown) {
+            this.step = 3;
+            this.updateStep(true);
+          }
+          // Meta Button Step: Advance on dual triggers
+          else if (this.step === 3 && this.leftTriggerDown && this.rightTriggerDown) {
             this.step = 4;
             this.updateStep(true);
           }
@@ -290,7 +318,8 @@
             this.teleportState = 'home';
             this.teleportZone.setAttribute('position', '0 0.03 0');
           } else if (this.teleportState === 'home') {
-            this.step = 3;
+            // Transitions to Volume Slider Step (slide 2.7)
+            this.step = '2.7';
             this.updateStep(true);
           }
         },
@@ -423,7 +452,7 @@
     <div id="launch-screen" onclick="startLabExperience()">
       <div class="badge">KENT STATE UNIVERSITY</div>
       <h1>College of Nursing VR Lab</h1>
-      <p>Controller Onboarding & Readiness Check (ver. 1.22) | Developed by John Comi</p>
+      <p>Controller Onboarding & Readiness Check (ver. 1.23) | Developed by John Comi</p>
       <div class="click-box">Push Any Button or Tap Screen to Begin</div>
     </div>
 
@@ -431,6 +460,14 @@
       <a-light type="ambient" color="#A0B8D9" intensity="0.85"></a-light>
       <a-light type="directional" position="2 7 1" color="#FFF8E7" intensity="0.75"></a-light>
       <a-light type="point" position="0 4.5 -4.5" color="#EEB111" intensity="0.4" distance="10"></a-light>
+
+      <!-- In-Headset Initial Loading Screen -->
+      <a-entity id="loading-billboard" position="0 1.6 -2.0">
+        <a-plane width="2.4" height="0.9" color="#00183F" material="shader: flat; opacity: 0.9"></a-plane>
+        <a-text value="Loading KSU Nursing Orientation..." align="center" width="2.6" position="0 0.15 0.02" color="#FFFFFF" font="roboto"></a-text>
+        <!-- Animated Golden Spinner -->
+        <a-ring radius-inner="0.08" radius-outer="0.11" position="0 -0.15 0.02" color="#EEB111" animation="property: rotation; to: 0 0 -360; loop: true; dur: 1000; easing: linear"></a-ring>
+      </a-entity>
 
       <!-- Main Floor Deck -->
       <a-plane position="0 0 0" rotation="-90 0 0" width="22" height="22" color="#08101E"></a-plane>
