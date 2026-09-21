@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -24,8 +24,12 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Configure Android SDK Environment
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+          echo "/usr/local/lib/android/sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "/usr/local/lib/android/sdk/platform-tools" >> $GITHUB_PATH
 
       - name: Install Meta Bubblewrap
         run: npm install -g @meta-quest/bubblewrap-cli
@@ -37,20 +41,51 @@ jobs:
           -storepass ksunursing -keypass ksunursing \
           -dname "CN=KSU, OU=Nursing, O=Kent State University, L=Kent, S=OH, C=US"
 
-      - name: Initialize Meta Quest Project
+      - name: Create Quest TWA Manifest
         run: |
-          bubblewrap init --manifest=https://jcomi4.github.io/nursingcontrollers/manifest.webmanifest \
-          --metaquest --mode=immersive
+          cat << 'EOF' > twa-manifest.json
+          {
+            "packageId": "edu.kent.nursing.controllers",
+            "host": "jcomi4.github.io",
+            "name": "KSU Nursing VR Orientation",
+            "launcherName": "KSU Orient",
+            "themeColor": "#EEB111",
+            "navigationColor": "#002664",
+            "backgroundColor": "#002664",
+            "enableNotifications": false,
+            "startUrl": "/nursingcontrollers/index.html",
+            "iconUrl": "https://jcomi4.github.io/nursingcontrollers/slide1.png",
+            "maskableIconUrl": "https://jcomi4.github.io/nursingcontrollers/slide1.png",
+            "appVersionName": "1.0.0",
+            "appVersionCode": 1,
+            "shortcuts": [],
+            "generatorApp": "bubblewrap-cli",
+            "webManifestUrl": "https://jcomi4.github.io/nursingcontrollers/manifest.webmanifest",
+            "fallbackType": "customtabs",
+            "features": {
+              "locationDelegation": { "enabled": false },
+              "playBilling": { "enabled": false }
+            },
+            "alphaDependencies": { "enabled": false },
+            "enableSiteSettingsShortcut": false,
+            "isChromeOSOnly": false,
+            "isMetaQuest": true,
+            "display": "immersive"
+          }
+          EOF
 
       - name: Build Signed APK
         run: |
-          bubblewrap build --keyStorePath=android.keystore \
-          --keyStorePassword=ksunursing --keyPassword=ksunursing
+          bubblewrap build \
+            --manifest=twa-manifest.json \
+            --keyStorePath=android.keystore \
+            --keyStorePassword=ksunursing \
+            --keyPassword=ksunursing
 
       - name: Calculate SHA256 Hash
         id: hash
         run: |
-          APK_FILE=$(find . -name "*signed*.apk" | head -n 1)
+          APK_FILE=$(find . -name "*.apk" | head -n 1)
           cp "$APK_FILE" app-release-signed.apk
           HASH=$(sha256sum app-release-signed.apk | awk '{print $1}')
           echo "SHA256=$HASH" >> $GITHUB_ENV
@@ -59,7 +94,7 @@ jobs:
           echo "========================================================"
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.0
           name: "KSU Orientation Release v1.0.0"
