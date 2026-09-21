@@ -13,88 +13,156 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Configure Android SDK & Bubblewrap Config
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Scaffold Native Quest WebXR Wrapper
         run: |
-          mkdir -p ~/.bubblewrap
-          cat << 'EOF' > ~/.bubblewrap/config.json
-          {
-            "jdkPath": "/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.*/x64",
-            "androidSdkPath": "/usr/local/lib/android/sdk"
+          mkdir -p app/src/main/java/edu/kent/nursing/controllers
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
+
+          # Download app icon from repo
+          curl -s -L "https://jcomi4.github.io/nursingcontrollers/slide1.png" -o app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+
+          # Generate strings
+          cat << 'EOF' > app/src/main/res/values/strings.xml
+          <resources>
+              <string name="app_name">KSU Nursing VR Orientation</string>
+          </resources>
+          EOF
+
+          # Generate Manifest with Meta Quest immersive VR tags
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-feature android:name="android.hardware.vr.headtracking" android:required="true" />
+              
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="@string/app_name"
+                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                  <meta-data android:name="com.oculus.vr.focusaware" android:value="true" />
+                  <meta-data android:name="com.oculus.intent.category.VR" android:value="true" />
+                  
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:screenOrientation="landscape"
+                      android:configChanges="density|keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|uiMode">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                          <category android:name="com.oculus.intent.category.VR" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          # Generate Main Activity to launch WebXR in Quest Browser / WebView
+          cat << 'EOF' > app/src/main/java/edu/kent/nursing/controllers/MainActivity.java
+          package edu.kent.nursing.controllers;
+
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.net.Uri;
+          import android.os.Bundle;
+
+          public class MainActivity extends Activity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://jcomi4.github.io/nursingcontrollers/"));
+                  intent.setPackage("com.oculus.browser");
+                  try {
+                      startActivity(intent);
+                  } catch (Exception e) {
+                      Intent fallback = new Intent(Intent.ACTION_VIEW, Uri.parse("https://jcomi4.github.io/nursingcontrollers/"));
+                      startActivity(fallback);
+                  }
+                  finish();
+              }
           }
           EOF
-          REAL_JAVA=$(echo /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.*/x64)
-          sed -i "s|/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.\*/x64|$REAL_JAVA|g" ~/.bubblewrap/config.json
-          cat ~/.bubblewrap/config.json
 
-      - name: Install Meta Bubblewrap
-        run: npm install -g @meta-quest/bubblewrap-cli
+          # Top-level settings and root gradle
+          echo "include ':app'" > settings.gradle
+          cat << 'EOF' > build.gradle
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.2.2'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOF
 
-      - name: Generate Keystore
+          # App level gradle
+          cat << 'EOF' > app/build.gradle
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'edu.kent.nursing.controllers'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "edu.kent.nursing.controllers"
+                  minSdk 29
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0.0"
+              }
+
+              signingConfigs {
+                  release {
+                      storeFile file("../android.keystore")
+                      storePassword "ksunursing"
+                      keyAlias "android"
+                      keyPassword "ksunursing"
+                  }
+              }
+
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                      minifyEnabled false
+                  }
+              }
+          }
+          EOF
+
+      - name: Generate Release Keystore
         run: |
           keytool -genkey -v -keystore android.keystore -alias android \
           -keyalg RSA -keysize 2048 -validity 10000 \
           -storepass ksunursing -keypass ksunursing \
           -dname "CN=KSU, OU=Nursing, O=Kent State University, L=Kent, S=OH, C=US"
 
-      - name: Create Quest TWA Manifest
-        run: |
-          cat << 'EOF' > twa-manifest.json
-          {
-            "packageId": "edu.kent.nursing.controllers",
-            "host": "jcomi4.github.io",
-            "name": "KSU Nursing VR Orientation",
-            "launcherName": "KSU Orient",
-            "themeColor": "#EEB111",
-            "navigationColor": "#002664",
-            "backgroundColor": "#002664",
-            "enableNotifications": false,
-            "startUrl": "/nursingcontrollers/index.html",
-            "iconUrl": "https://jcomi4.github.io/nursingcontrollers/slide1.png",
-            "maskableIconUrl": "https://jcomi4.github.io/nursingcontrollers/slide1.png",
-            "appVersionName": "1.0.0",
-            "appVersionCode": 1,
-            "shortcuts": [],
-            "generatorApp": "bubblewrap-cli",
-            "webManifestUrl": "https://jcomi4.github.io/nursingcontrollers/manifest.webmanifest",
-            "fallbackType": "customtabs",
-            "features": {
-              "locationDelegation": { "enabled": false },
-              "playBilling": { "enabled": false }
-            },
-            "alphaDependencies": { "enabled": false },
-            "enableSiteSettingsShortcut": false,
-            "isChromeOSOnly": false,
-            "isMetaQuest": true,
-            "display": "immersive"
-          }
-          EOF
-
-      - name: Build Signed APK
-        run: |
-          echo "no" | bubblewrap build \
-            --manifest=twa-manifest.json \
-            --signingKeyPath=android.keystore \
-            --signingKeyAlias=android \
-            --keyStorePassword=ksunursing \
-            --keyPassword=ksunursing \
-            --skipPwaValidation
+      - name: Build Signed APK with Gradle
+        run: gradle assembleRelease
 
       - name: Calculate SHA256 Hash
         id: hash
         run: |
-          APK_FILE=$(find . -name "*.apk" | head -n 1)
-          cp "$APK_FILE" app-release-signed.apk
+          cp app/build/outputs/apk/release/app-release.apk ./app-release-signed.apk
           HASH=$(sha256sum app-release-signed.apk | awk '{print $1}')
           echo "SHA256=$HASH" >> $GITHUB_ENV
           echo "========================================================"
