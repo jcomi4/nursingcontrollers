@@ -355,18 +355,45 @@
               }
             }
           }
+        },
+
+        targetHit: function () {
+          SoundFX.playTargetHit();
+          this.targetsRemaining--;
+          if (this.targetsRemaining <= 0) {
+            this.step = '2.5';
+            this.updateStep(true);
+          }
         }
       });
 
       AFRAME.registerComponent('shootable', {
         init: function () {
+          this.isHit = false;
           this.el.addEventListener('click', () => {
-            this.el.setAttribute('animation', 'property: scale; to: 0 0 0; dur: 150');
+            if (this.isHit) return;
+            this.isHit = true;
+
+            // Remove clickable class immediately to prevent multi-triggering
+            this.el.classList.remove('clickable');
+
+            // Play one-shot shrink animation using an isolated namespace
+            this.el.setAttribute('animation__shrink', {
+              property: 'scale',
+              to: '0 0 0',
+              dur: 150,
+              easing: 'easeInQuad',
+              loop: false
+            });
+
             setTimeout(() => {
               const mgr = document.querySelector('a-scene').components['step-manager'];
               if (mgr) mgr.targetHit();
-              this.el.parentNode.removeChild(this.el);
-            }, 150);
+              this.el.setAttribute('visible', 'false');
+              if (this.el.parentNode) {
+                this.el.parentNode.removeChild(this.el);
+              }
+            }, 160);
           });
         }
       });
@@ -383,11 +410,11 @@
     <div id="launch-screen" onclick="startLabExperience()">
       <div class="badge">KENT STATE UNIVERSITY</div>
       <h1>College of Nursing VR Lab</h1>
-      <p>Controller Onboarding & Readiness Check (ver. 1.20) | Developed by John Comi</p>
+      <p>Controller Onboarding & Readiness Check (ver. 1.21) | Developed by John Comi</p>
       <div class="click-box">Push Any Button or Tap Screen to Begin</div>
     </div>
 
-    <!-- webxr="referenceSpaceType: local-floor" forces headset guardian ground to equal y=0 -->
+    <!-- WebXR Local-Floor alignment -->
     <a-scene step-manager webxr="referenceSpaceType: local-floor" background="color: #030A16">
       <a-light type="ambient" color="#A0B8D9" intensity="0.85"></a-light>
       <a-light type="directional" position="2 7 1" color="#FFF8E7" intensity="0.75"></a-light>
@@ -400,7 +427,7 @@
       <a-ring position="0 0.01 0" rotation="-90 0 0" radius-inner="4.8" radius-outer="4.9" color="#002664" opacity="0.8"></a-ring>
       <a-ring position="0 0.015 0" rotation="-90 0 0" radius-inner="4.9" radius-outer="4.95" color="#EEB111" opacity="0.5"></a-ring>
 
-      <!-- Station Center directly beneath feet -->
+      <!-- Station Center -->
       <a-circle position="0 0.02 0" rotation="-90 0 0" radius="0.85" color="#002664" opacity="0.95"></a-circle>
       <a-ring position="0 0.025 0" rotation="-90 0 0" radius-inner="0.78" radius-outer="0.84" color="#EEB111"></a-ring>
       <a-ring position="0 0.027 0" rotation="-90 0 0" radius-inner="0.25" radius-outer="0.28" color="#EEB111" opacity="0.7"></a-ring>
@@ -420,7 +447,7 @@
       <a-cylinder position="5.5 3 5.5" radius="0.18" height="6" color="#00183F"></a-cylinder>
       <a-cylinder position="5.5 5.8 5.5" radius="0.22" height="0.4" color="#EEB111"></a-cylinder>
 
-      <!-- Camera Rig: Natural Headset Tracking with No Synthetic Offset -->
+      <!-- Camera Rig -->
       <a-entity id="camera-rig" position="0 0 0">
         <a-camera position="0 0 0" wasd-controls="enabled: false" look-controls="magicWindowTrackingEnabled: false"></a-camera>
         <a-entity id="left-hand" oculus-touch-controls="hand: left; model: true" laser-controls="hand: left" raycaster="lineColor: #EEB111; lineOpacity: 0.9"></a-entity>
@@ -435,7 +462,7 @@
         <a-cylinder position="0.35 0.38 -0.75" radius="0.16" height="0.76" color="#00183F"></a-cylinder>
         <a-cylinder position="0.35 0.77 -0.75" radius="0.18" height="0.02" color="#EEB111"></a-cylinder>
 
-        <!-- Key: Ring handle at student side, shaft forward (-Z) -->
+        <!-- Key -->
         <a-entity id="key-entity" position="-0.35 0.84 -0.75">
           <a-torus position="0 0 0.04" radius="0.035" radius-tubular="0.008" color="#EEB111" metalness="0.8" roughness="0.2" rotation="0 90 0"></a-torus>
           <a-cylinder position="0 0 -0.02" radius="0.007" height="0.08" color="#EEB111" metalness="0.8" roughness="0.2" rotation="90 0 0"></a-cylinder>
@@ -469,11 +496,11 @@
         <a-plane id="slideDisplay" position="0 0 0.01" width="4.76" height="2.68" material="shader: flat; color: #FFFFFF"></a-plane>
       </a-entity>
 
-      <!-- 360 Targets -->
+      <!-- 360 Targets (with isolated position idle animation) -->
       <a-entity id="target-group" visible="false">
-        <a-sphere class="clickable" shootable position="-3.2 1.6 0.0" radius="0.26" color="#EEB111" animation="property: position; to: -3.2 1.75 0.0; dir: alternate; loop: true; dur: 1200"></a-sphere>
-        <a-sphere class="clickable" shootable position="3.2 1.6 0.0" radius="0.26" color="#EEB111" animation="property: position; to: 3.2 1.75 0.0; dir: alternate; loop: true; dur: 1400"></a-sphere>
-        <a-sphere class="clickable" shootable position="0.0 1.7 3.0" radius="0.26" color="#EEB111" animation="property: position; to: 0.0 1.85 3.0; dir: alternate; loop: true; dur: 1000"></a-sphere>
+        <a-sphere class="clickable" shootable position="-3.2 1.6 0.0" radius="0.26" color="#EEB111" animation__hover="property: position; to: -3.2 1.75 0.0; dir: alternate; loop: true; dur: 1200"></a-sphere>
+        <a-sphere class="clickable" shootable position="3.2 1.6 0.0" radius="0.26" color="#EEB111" animation__hover="property: position; to: 3.2 1.75 0.0; dir: alternate; loop: true; dur: 1400"></a-sphere>
+        <a-sphere class="clickable" shootable position="0.0 1.7 3.0" radius="0.26" color="#EEB111" animation__hover="property: position; to: 0.0 1.85 3.0; dir: alternate; loop: true; dur: 1000"></a-sphere>
       </a-entity>
     </a-scene>
   </body>
