@@ -244,7 +244,6 @@
 
           if (keyPos.distanceTo(lockPos) < 0.28) {
             this.keySolved = true;
-            
             this.keyEntity.object3D.position.set(0.35, 0.72, -0.66);
             this.keyEntity.object3D.rotation.set(0, 0, 0);
 
@@ -274,7 +273,6 @@
           if (this.teleportState === 'away') {
             SoundFX.playTargetHit();
             this.teleportState = 'home';
-            // Station center is at (0, 0)
             this.teleportZone.setAttribute('position', '0 0.03 0');
           } else if (this.teleportState === 'home') {
             this.step = 3;
@@ -385,12 +383,12 @@
     <div id="launch-screen" onclick="startLabExperience()">
       <div class="badge">KENT STATE UNIVERSITY</div>
       <h1>College of Nursing VR Lab</h1>
-      <p>Controller Onboarding & Readiness Check (ver. 1.19) | Developed by John Comi</p>
+      <p>Controller Onboarding & Readiness Check (ver. 1.20) | Developed by John Comi</p>
       <div class="click-box">Push Any Button or Tap Screen to Begin</div>
     </div>
 
-    <a-scene step-manager background="color: #030A16">
-      <!-- Lighting -->
+    <!-- webxr="referenceSpaceType: local-floor" forces headset guardian ground to equal y=0 -->
+    <a-scene step-manager webxr="referenceSpaceType: local-floor" background="color: #030A16">
       <a-light type="ambient" color="#A0B8D9" intensity="0.85"></a-light>
       <a-light type="directional" position="2 7 1" color="#FFF8E7" intensity="0.75"></a-light>
       <a-light type="point" position="0 4.5 -4.5" color="#EEB111" intensity="0.4" distance="10"></a-light>
@@ -398,18 +396,18 @@
       <!-- Main Floor Deck -->
       <a-plane position="0 0 0" rotation="-90 0 0" width="22" height="22" color="#08101E"></a-plane>
 
-      <!-- Floor Boundary Accents & Grid Lines -->
+      <!-- Floor Boundary Accents -->
       <a-ring position="0 0.01 0" rotation="-90 0 0" radius-inner="4.8" radius-outer="4.9" color="#002664" opacity="0.8"></a-ring>
       <a-ring position="0 0.015 0" rotation="-90 0 0" radius-inner="4.9" radius-outer="4.95" color="#EEB111" opacity="0.5"></a-ring>
 
-      <!-- Station Center (DIRECTLY Underneath the Student at 0, 0) -->
+      <!-- Station Center directly beneath feet -->
       <a-circle position="0 0.02 0" rotation="-90 0 0" radius="0.85" color="#002664" opacity="0.95"></a-circle>
       <a-ring position="0 0.025 0" rotation="-90 0 0" radius-inner="0.78" radius-outer="0.84" color="#EEB111"></a-ring>
       <a-ring position="0 0.027 0" rotation="-90 0 0" radius-inner="0.25" radius-outer="0.28" color="#EEB111" opacity="0.7"></a-ring>
       <a-text value="STATION CENTER" position="0 0.03 0.45" rotation="-90 0 0" align="center" width="2.2" color="#FFFFFF" font="roboto"></a-text>
       <a-text value="KSU NURSING SIMULATION" position="0 0.03 -0.45" rotation="-90 180 0" align="center" width="1.8" color="#EEB111" font="roboto"></a-text>
 
-      <!-- Subtle KSU Architectural Accent Pillars (Positioned far in corners to frame room) -->
+      <!-- Framing Pillars -->
       <a-cylinder position="-5.5 3 -5.5" radius="0.18" height="6" color="#00183F"></a-cylinder>
       <a-cylinder position="-5.5 5.8 -5.5" radius="0.22" height="0.4" color="#EEB111"></a-cylinder>
 
@@ -422,31 +420,29 @@
       <a-cylinder position="5.5 3 5.5" radius="0.18" height="6" color="#00183F"></a-cylinder>
       <a-cylinder position="5.5 5.8 5.5" radius="0.22" height="0.4" color="#EEB111"></a-cylinder>
 
-      <!-- Camera Rig: Anchored cleanly to floor level (no artificial 1.6m lift in VR) -->
+      <!-- Camera Rig: Natural Headset Tracking with No Synthetic Offset -->
       <a-entity id="camera-rig" position="0 0 0">
-        <a-camera></a-camera>
+        <a-camera position="0 0 0" wasd-controls="enabled: false" look-controls="magicWindowTrackingEnabled: false"></a-camera>
         <a-entity id="left-hand" oculus-touch-controls="hand: left; model: true" laser-controls="hand: left" raycaster="lineColor: #EEB111; lineOpacity: 0.9"></a-entity>
         <a-entity id="right-hand" oculus-touch-controls="hand: right; model: true" laser-controls="hand: right" raycaster="lineColor: #EEB111; lineOpacity: 0.9"></a-entity>
       </a-entity>
 
-      <!-- Step 1: Pedestals, Key & Lock Block (Centered at comfortable chest/arm reach) -->
+      <!-- Step 1: Pedestals, Key & Lock Block -->
       <a-entity id="key-lock-group" visible="true">
-        <!-- Left Pedestal -->
         <a-cylinder position="-0.35 0.38 -0.75" radius="0.16" height="0.76" color="#00183F"></a-cylinder>
         <a-cylinder position="-0.35 0.77 -0.75" radius="0.18" height="0.02" color="#EEB111"></a-cylinder>
 
-        <!-- Right Pedestal -->
         <a-cylinder position="0.35 0.38 -0.75" radius="0.16" height="0.76" color="#00183F"></a-cylinder>
         <a-cylinder position="0.35 0.77 -0.75" radius="0.18" height="0.02" color="#EEB111"></a-cylinder>
 
-        <!-- Key: Ring handle at player's side, blade forward into room -->
+        <!-- Key: Ring handle at student side, shaft forward (-Z) -->
         <a-entity id="key-entity" position="-0.35 0.84 -0.75">
           <a-torus position="0 0 0.04" radius="0.035" radius-tubular="0.008" color="#EEB111" metalness="0.8" roughness="0.2" rotation="0 90 0"></a-torus>
           <a-cylinder position="0 0 -0.02" radius="0.007" height="0.08" color="#EEB111" metalness="0.8" roughness="0.2" rotation="90 0 0"></a-cylinder>
           <a-box position="0 -0.014 -0.05" width="0.007" height="0.016" depth="0.02" color="#EEB111" metalness="0.8" roughness="0.2"></a-box>
         </a-entity>
 
-        <!-- Lock Box: Facing player -->
+        <!-- Lock Box -->
         <a-entity id="lock-entity" position="0.35 0.84 -0.75">
           <a-box width="0.16" height="0.18" depth="0.12" color="#002664" roughness="0.3"></a-box>
           <a-box position="0 0 0.061" width="0.018" height="0.07" depth="0.01" color="#050505"></a-box>
@@ -467,7 +463,7 @@
         <a-text value="TELEPORT HERE" rotation="-90 0 0" position="0 0.01 0" align="center" width="2.6" color="#00FFCC" font="roboto"></a-text>
       </a-entity>
 
-      <!-- Main Display Board (Framed cleanly in KSU Gold) -->
+      <!-- Main Display Board -->
       <a-entity position="0 1.8 -4.5">
         <a-plane width="4.84" height="2.76" position="0 0 -0.01" color="#EEB111"></a-plane>
         <a-plane id="slideDisplay" position="0 0 0.01" width="4.76" height="2.68" material="shader: flat; color: #FFFFFF"></a-plane>
