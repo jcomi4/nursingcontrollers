@@ -89,20 +89,25 @@
       AFRAME.registerComponent('step-manager', {
         init: function () {
           this.step = 1;
-          this.gripTimer = 0;
-          this.isGripping = false;
           this.targetsRemaining = 3;
           this.teleportState = 'away';
           this.isStickActive = false;
+
+          // Key and Lock State (Step 1)
+          this.keySolved = false;
+          this.grabbedHand = null;
+          this.keyDefaultPos = new THREE.Vector3(-0.35, 1.05, -0.7);
 
           // Dual trigger tracking for Step 3
           this.leftTriggerDown = false;
           this.rightTriggerDown = false;
 
           this.slideDisplay = document.querySelector('#slideDisplay');
-          this.progressBar = document.querySelector('#progress-fill');
-          this.progressBg = document.querySelector('#progress-bg');
           this.targetGroup = document.querySelector('#target-group');
+          this.keyLockGroup = document.querySelector('#key-lock-group');
+          this.keyEntity = document.querySelector('#key-entity');
+          this.lockEntity = document.querySelector('#lock-entity');
+
           this.teleportZone = document.querySelector('#teleport-zone');
           this.teleportMarker = document.querySelector('#teleport-marker');
           this.teleportBeam = document.querySelector('#teleport-beam');
@@ -143,13 +148,10 @@
           this.applyTexture(this.step);
 
           if (this.step === 1) {
-            this.progressBg.setAttribute('visible', 'true');
-            this.progressBar.setAttribute('visible', 'true');
-            this.progressBar.setAttribute('scale', '0 1 1');
+            this.keyLockGroup.setAttribute('visible', 'true');
           } 
           else if (this.step === 2) {
-            this.progressBg.setAttribute('visible', 'false');
-            this.progressBar.setAttribute('visible', 'false');
+            this.keyLockGroup.setAttribute('visible', 'false');
             this.targetGroup.setAttribute('visible', 'true');
 
             this.leftHand.setAttribute('raycaster', 'objects: .clickable; showLine: true; far: 25');
@@ -184,17 +186,9 @@
         },
 
         bindControls: function () {
-          const checkGrip = (val) => {
-            this.isGripping = val;
-            if (!val && this.step === 1) {
-              this.gripTimer = 0;
-              this.progressBar.setAttribute('scale', '0 1 1');
-            }
-          };
-
           // Left Hand Listeners
-          this.leftHand.addEventListener('gripdown', () => checkGrip(true));
-          this.leftHand.addEventListener('gripup', () => checkGrip(false));
+          this.leftHand.addEventListener('gripdown', () => this.tryGrabKey(this.leftHand));
+          this.leftHand.addEventListener('gripup', () => this.tryReleaseKey(this.leftHand));
           this.leftHand.addEventListener('triggerdown', () => {
             this.leftTriggerDown = true;
             this.checkDualTriggers();
@@ -204,8 +198,8 @@
           });
 
           // Right Hand Listeners
-          this.rightHand.addEventListener('gripdown', () => checkGrip(true));
-          this.rightHand.addEventListener('gripup', () => checkGrip(false));
+          this.rightHand.addEventListener('gripdown', () => this.tryGrabKey(this.rightHand));
+          this.rightHand.addEventListener('gripup', () => this.tryReleaseKey(this.rightHand));
           this.rightHand.addEventListener('triggerdown', () => {
             this.rightTriggerDown = true;
             this.checkDualTriggers();
@@ -213,6 +207,57 @@
           this.rightHand.addEventListener('triggerup', () => {
             this.rightTriggerDown = false;
           });
+        },
+
+        tryGrabKey: function (handEntity) {
+          if (this.step !== 1 || this.keySolved || this.grabbedHand) return;
+
+          const handPos = new THREE.Vector3();
+          handEntity.object3D.getWorldPosition(handPos);
+
+          const keyPos = new THREE.Vector3();
+          this.keyEntity.object3D.getWorldPosition(keyPos);
+
+          if (handPos.distanceTo(keyPos) < 0.28) {
+            this.grabbedHand = handEntity;
+            const scene = this.el.sceneEl.object3D;
+            scene.attach(this.keyEntity.object3D);
+            this.grabbedHand.object3D.attach(this.keyEntity.object3D);
+            this.keyEntity.object3D.position.set(0, -0.04, -0.08);
+            this.keyEntity.object3D.rotation.set(-Math.PI / 3, 0, 0);
+          }
+        },
+
+        tryReleaseKey: function (handEntity) {
+          if (this.grabbedHand !== handEntity || this.keySolved) return;
+
+          const scene = this.el.sceneEl.object3D;
+          scene.attach(this.keyEntity.object3D);
+          this.grabbedHand = null;
+
+          const keyPos = new THREE.Vector3();
+          this.keyEntity.object3D.getWorldPosition(keyPos);
+
+          const lockPos = new THREE.Vector3();
+          this.lockEntity.object3D.getWorldPosition(lockPos);
+
+          // If dropped near the keyhole
+          if (keyPos.distanceTo(lockPos) < 0.25) {
+            this.keySolved = true;
+            this.keyEntity.object3D.position.set(0.35, 1.05, -0.63);
+            this.keyEntity.object3D.rotation.set(0, 0, 0);
+
+            SoundFX.playStepComplete();
+
+            setTimeout(() => {
+              this.step = 2;
+              this.updateStep(false);
+            }, 900);
+          } else {
+            // Snap back to pedestal
+            this.keyEntity.object3D.position.copy(this.keyDefaultPos);
+            this.keyEntity.object3D.rotation.set(0, 0, 0);
+          }
         },
 
         checkDualTriggers: function () {
@@ -237,20 +282,6 @@
         },
 
         tick: function (time, deltaTime) {
-          // Grip hold progress (Step 1)
-          if (this.step === 1 && this.isGripping) {
-            this.gripTimer += deltaTime;
-            const progress = Math.min(this.gripTimer / 2000, 1);
-            this.progressBar.setAttribute('scale', `${progress} 1 1`);
-            this.progressBar.setAttribute('position', `${-2.05 + (progress * 0.85)} -1.14 0.04`);
-
-            if (this.gripTimer >= 2000) {
-              this.isGripping = false;
-              this.step = 2;
-              this.updateStep(true);
-            }
-          }
-
           // Teleport Aim & Ground Projection (Step 2.5)
           if (this.step === '2.5') {
             let stickPushed = false;
@@ -363,7 +394,7 @@
     <div id="launch-screen" onclick="startLabExperience()">
       <div class="badge">KENT STATE UNIVERSITY</div>
       <h1>College of Nursing VR Lab</h1>
-      <p>Controller Onboarding & Readiness Check (ver. 1.14) | Developed by John Comi</p>
+      <p>Controller Onboarding & Readiness Check (ver. 1.15) | Developed by John Comi</p>
       <div class="click-box">Push Any Button or Tap Screen to Begin</div>
     </div>
 
@@ -384,6 +415,31 @@
         <a-entity id="right-hand" oculus-touch-controls="hand: right; model: true" laser-controls="hand: right" raycaster="lineColor: #EEB111; lineOpacity: 0.9"></a-entity>
       </a-entity>
 
+      <!-- Step 1: Interactive Key & Lock Pedestals -->
+      <a-entity id="key-lock-group" visible="true">
+        <!-- Left Table / Pedestal for Key -->
+        <a-cylinder position="-0.35 0.45 -0.7" radius="0.16" height="0.9" color="#00183F"></a-cylinder>
+        <a-cylinder position="-0.35 0.91 -0.7" radius="0.18" height="0.03" color="#EEB111"></a-cylinder>
+
+        <!-- Right Table / Pedestal for Lock -->
+        <a-cylinder position="0.35 0.45 -0.7" radius="0.16" height="0.9" color="#00183F"></a-cylinder>
+        <a-cylinder position="0.35 0.91 -0.7" radius="0.18" height="0.03" color="#EEB111"></a-cylinder>
+
+        <!-- The Grabbable Key -->
+        <a-entity id="key-entity" position="-0.35 1.05 -0.7">
+          <a-torus radius="0.035" radius-tubular="0.008" color="#EEB111" metalness="0.8" roughness="0.2" rotation="0 90 0"></a-torus>
+          <a-cylinder position="0 0 0.06" radius="0.007" height="0.09" color="#EEB111" metalness="0.8" roughness="0.2" rotation="90 0 0"></a-cylinder>
+          <a-box position="0 -0.012 0.09" depth="0.02" width="0.007" height="0.016" color="#EEB111" metalness="0.8" roughness="0.2"></a-box>
+        </a-entity>
+
+        <!-- The Lock Block -->
+        <a-entity id="lock-entity" position="0.35 1.05 -0.7">
+          <a-box width="0.16" height="0.2" depth="0.12" color="#002664" roughness="0.3"></a-box>
+          <!-- Keyhole Inset -->
+          <a-box position="0 0 0.061" width="0.02" height="0.07" depth="0.01" color="#050505"></a-box>
+        </a-entity>
+      </a-entity>
+
       <!-- Dynamic Teleport Beam & Target Reticle -->
       <a-entity id="teleport-beam" visible="false" line="start: 0 0 0; end: 0 0 0; color: #00FFCC; opacity: 0.85"></a-entity>
       <a-entity id="teleport-marker" visible="false">
@@ -398,14 +454,10 @@
         <a-text value="TELEPORT HERE" rotation="-90 0 0" position="0 0.01 0" align="center" width="2.6" color="#00FFCC" font="roboto"></a-text>
       </a-entity>
 
-      <!-- Main Display Board (Pushed back to 4.5m with balanced proportion) -->
+      <!-- Main Display Board -->
       <a-entity position="0 1.7 -4.5">
         <a-plane width="4.8" height="2.74" position="0 0 -0.01" color="#EEB111"></a-plane>
         <a-plane id="slideDisplay" position="0 0 0.01" width="4.76" height="2.68" material="shader: flat; color: #FFFFFF"></a-plane>
-
-        <!-- Bottom-Left Hold Bar -->
-        <a-plane id="progress-bg" position="-1.2 -1.14 0.03" width="1.7" height="0.08" color="#00183F" visible="true"></a-plane>
-        <a-plane id="progress-fill" position="-2.05 -1.14 0.04" scale="0 1 1" width="1.7" height="0.08" color="#EEB111" visible="true"></a-plane>
       </a-entity>
 
       <!-- 360 Targets -->
