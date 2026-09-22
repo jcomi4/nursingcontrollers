@@ -106,7 +106,7 @@
 
           this.keySolved = false;
           this.grabbedHand = null;
-          this.keyDefaultPos = new THREE.Vector3(-0.35, 0.72, -0.7);
+          this.keyDefaultPos = new THREE.Vector3(-0.35, 0.84, -0.75);
 
           this.leftTriggerDown = false;
           this.rightTriggerDown = false;
@@ -202,7 +202,6 @@
             this.rightHand.setAttribute('raycaster', 'showLine', false);
           }
           else if (this.step === '2.7') {
-            // Volume slider instruction step
             this.teleportZone.setAttribute('visible', 'false');
             this.teleportMarker.setAttribute('visible', 'false');
             this.teleportBeam.setAttribute('visible', 'false');
@@ -210,7 +209,6 @@
             this.rightTriggerDown = false;
           }
           else if (this.step === 3) {
-            // Meta button instruction step
             this.leftTriggerDown = false;
             this.rightTriggerDown = false;
           } 
@@ -269,19 +267,22 @@
           if (this.grabbedHand !== handEntity || this.keySolved) return;
 
           const scene = this.el.sceneEl.object3D;
+          // Capture world position before detaching from hand
+          const worldPos = new THREE.Vector3();
+          this.keyEntity.object3D.getWorldPosition(worldPos);
+
+          // Re-attach directly to root scene first
           scene.attach(this.keyEntity.object3D);
           this.grabbedHand = null;
-
-          const keyPos = new THREE.Vector3();
-          this.keyEntity.object3D.getWorldPosition(keyPos);
 
           const lockPos = new THREE.Vector3();
           this.lockEntity.object3D.getWorldPosition(lockPos);
 
-          if (keyPos.distanceTo(lockPos) < 0.28) {
+          if (worldPos.distanceTo(lockPos) < 0.28) {
             this.keySolved = true;
             
-            this.keyEntity.object3D.position.set(0.35, 0.72, -0.66);
+            // Cleanly place key into lock slot
+            this.keyEntity.object3D.position.set(0.35, 0.84, -0.69);
             this.keyEntity.object3D.rotation.set(0, 0, 0);
 
             SoundFX.playStepComplete();
@@ -291,18 +292,17 @@
               this.updateStep(false);
             }, 800);
           } else {
+            // Cleanly reset back to left pedestal coordinates
             this.keyEntity.object3D.position.copy(this.keyDefaultPos);
             this.keyEntity.object3D.rotation.set(0, 0, 0);
           }
         },
 
         checkTriggers: function () {
-          // Volume Slider Step: Advance on dual triggers
           if (this.step === '2.7' && this.leftTriggerDown && this.rightTriggerDown) {
             this.step = 3;
             this.updateStep(true);
           }
-          // Meta Button Step: Advance on dual triggers
           else if (this.step === 3 && this.leftTriggerDown && this.rightTriggerDown) {
             this.step = 4;
             this.updateStep(true);
@@ -318,7 +318,6 @@
             this.teleportState = 'home';
             this.teleportZone.setAttribute('position', '0 0.03 0');
           } else if (this.teleportState === 'home') {
-            // Transitions to Volume Slider Step (slide 2.7)
             this.step = '2.7';
             this.updateStep(true);
           }
@@ -452,7 +451,7 @@
     <div id="launch-screen" onclick="startLabExperience()">
       <div class="badge">KENT STATE UNIVERSITY</div>
       <h1>College of Nursing VR Lab</h1>
-      <p>Controller Onboarding & Readiness Check (ver. 1.23) | Developed by John Comi</p>
+      <p>Controller Onboarding & Readiness Check (ver. 1.24) | Developed by John Comi</p>
       <div class="click-box">Push Any Button or Tap Screen to Begin</div>
     </div>
 
@@ -465,7 +464,6 @@
       <a-entity id="loading-billboard" position="0 1.6 -2.0">
         <a-plane width="2.4" height="0.9" color="#00183F" material="shader: flat; opacity: 0.9"></a-plane>
         <a-text value="Loading KSU Nursing Orientation..." align="center" width="2.6" position="0 0.15 0.02" color="#FFFFFF" font="roboto"></a-text>
-        <!-- Animated Golden Spinner -->
         <a-ring radius-inner="0.08" radius-outer="0.11" position="0 -0.15 0.02" color="#EEB111" animation="property: rotation; to: 0 0 -360; loop: true; dur: 1000; easing: linear"></a-ring>
       </a-entity>
 
