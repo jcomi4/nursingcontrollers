@@ -46,8 +46,12 @@
           if (!this.bgMusic) {
             this.bgMusic = new Audio('music.mp3');
             this.bgMusic.loop = true;
-            this.bgMusic.volume = 0.15;
+            this.bgMusic.volume = 0.25;
           }
+        },
+        playMusic: function () {
+          if (!this.bgMusic) this.init();
+          this.bgMusic.currentTime = 0;
           this.bgMusic.play().catch(() => {});
         },
         stopMusic: function () {
@@ -207,14 +211,19 @@
             this.teleportBeam.setAttribute('visible', 'false');
             this.leftTriggerDown = false;
             this.rightTriggerDown = false;
+
+            // Start music specifically for the volume slider test
+            SoundFX.playMusic();
           }
           else if (this.step === 3) {
+            // Stop music when moving from volume slide to meta slide
+            SoundFX.stopMusic();
+
             this.leftTriggerDown = false;
             this.rightTriggerDown = false;
           } 
           else if (this.step === 4) {
             setTimeout(() => {
-              SoundFX.stopMusic();
               const scene = this.el.sceneEl;
               if (scene.is('vr-mode')) scene.exitVR();
             }, 5000);
@@ -267,11 +276,9 @@
           if (this.grabbedHand !== handEntity || this.keySolved) return;
 
           const scene = this.el.sceneEl.object3D;
-          // Capture world position before detaching from hand
           const worldPos = new THREE.Vector3();
           this.keyEntity.object3D.getWorldPosition(worldPos);
 
-          // Re-attach directly to root scene first
           scene.attach(this.keyEntity.object3D);
           this.grabbedHand = null;
 
@@ -281,7 +288,6 @@
           if (worldPos.distanceTo(lockPos) < 0.28) {
             this.keySolved = true;
             
-            // Cleanly place key into lock slot
             this.keyEntity.object3D.position.set(0.35, 0.84, -0.69);
             this.keyEntity.object3D.rotation.set(0, 0, 0);
 
@@ -292,7 +298,6 @@
               this.updateStep(false);
             }, 800);
           } else {
-            // Cleanly reset back to left pedestal coordinates
             this.keyEntity.object3D.position.copy(this.keyDefaultPos);
             this.keyEntity.object3D.rotation.set(0, 0, 0);
           }
@@ -451,7 +456,7 @@
     <div id="launch-screen" onclick="startLabExperience()">
       <div class="badge">KENT STATE UNIVERSITY</div>
       <h1>College of Nursing VR Lab</h1>
-      <p>Controller Onboarding & Readiness Check (ver. 1.24) | Developed by John Comi</p>
+      <p>Controller Onboarding & Readiness Check (ver. 1.25) | Developed by John Comi</p>
       <div class="click-box">Push Any Button or Tap Screen to Begin</div>
     </div>
 
